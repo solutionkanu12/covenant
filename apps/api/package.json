@@ -5,13 +5,19 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "check:coston2": "tsx src/scripts/check-coston2.ts",
+    "check:fdc-verifier": "tsx src/scripts/check-fdc-verifier.ts",
+    "check:networks": "pnpm check:coston2 && pnpm check:xrpl && pnpm check:fdc-verifier",
+    "check:xrpl": "tsx src/scripts/check-xrpl.ts",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@covenant/shared": "workspace:*",
-    "fastify": "^5.5.0"
+    "fastify": "^5.5.0",
+    "viem": "^2.55.13",
+    "xrpl": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
