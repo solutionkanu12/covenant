@@ -10,6 +10,8 @@
     "check:networks": "pnpm check:coston2 && pnpm check:xrpl && pnpm check:fdc-verifier",
     "check:xrpl": "tsx src/scripts/check-xrpl.ts",
     "dev": "tsx watch src/server.ts",
+    "prove:xrpl-payment": "tsx src/scripts/prove-xrpl-payment.ts",
+    "setup:xrpl-wallets": "tsx src/scripts/setup-xrpl-wallets.ts",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit"
   },

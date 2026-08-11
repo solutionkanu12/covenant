@@ -1,6 +1,6 @@
 # Covenant
 
-Covenant is a collateralized XRP payment commitment prototype. The repository contains the Phase 0 foundation and Phase 1A read-only network diagnostics; wallets, transactions, attestations, databases, and production contracts are intentionally not included yet.
+Covenant is a collateralized XRP payment commitment prototype. The repository contains the Phase 0 foundation, Phase 1A read-only network diagnostics, and a sanitized Phase 1B XRPL Testnet payment proof; attestations, databases, and production contracts are intentionally not included yet.
 
 ## Prerequisites
 
@@ -37,6 +37,8 @@ The checks use the public defaults documented in `.env.example`. Override them w
 ```bash
 pnpm --filter @covenant/api check:networks
 ```
+
+The Phase 1B result and its recovery-only verification command are documented in `docs/PHASE-1B-XRPL-PAYMENT.md`.
 
 ## Checks
 

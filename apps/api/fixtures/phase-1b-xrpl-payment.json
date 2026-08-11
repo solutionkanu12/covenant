@@ -1,0 +1,9 @@
+{
+  "amount": "1 XRP",
+  "destinationAddress": "rBrGGQy5GwFwL4fs9C2YFLquD5ZQYtj8Dw",
+  "ledgerIndex": 19819259,
+  "payerAddress": "rKQPLJHUD7x1sGu2hd37UutcZ64VbQGuZD",
+  "reference": "260B7E15BA888B6D7B3CBCCA5966913CDECEC7E81FC80E4E4E3679BA079C7FE1",
+  "transactionHash": "55352D2661BF420D9AA962781AB66DC63E3916887ED362DEA9B6E63C3C960BF0",
+  "validationResult": "tesSUCCESS"
+}
