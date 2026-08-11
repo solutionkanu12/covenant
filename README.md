@@ -38,7 +38,7 @@ The checks use the public defaults documented in `.env.example`. Override them w
 pnpm --filter @covenant/api check:networks
 ```
 
-The Phase 1B result and its recovery-only verification command are documented in `docs/PHASE-1B-XRPL-PAYMENT.md`.
+The Phase 1B payment result is documented in `docs/PHASE-1B-XRPL-PAYMENT.md`. Its finalized Flare FDC proof and read-only verification command are documented in `docs/PHASE-1C-FDC-PAYMENT.md`.
 
 ## Checks
 
