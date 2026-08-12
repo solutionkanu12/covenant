@@ -14,7 +14,8 @@
     "setup:xrpl-wallets": "tsx src/scripts/setup-xrpl-wallets.ts",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "verify:fdc-payment": "tsx src/scripts/verify-fdc-payment.ts"
+    "verify:fdc-payment": "tsx src/scripts/verify-fdc-payment.ts",
+    "verify:fdc-rpn": "tsx src/scripts/verify-fdc-rpn.ts"
   },
   "dependencies": {
     "@covenant/shared": "workspace:*",
