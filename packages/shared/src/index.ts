@@ -1,5 +1,12 @@
 export const productName = "Covenant";
 
+export const covenantCoston2Deployment = {
+  chainId: 114,
+  covenantEscrow: "0x841F714A57Ba1B1A77ef8b3732aCf825D593f017",
+  collateralToken: "0x0b6A3645c240605887a5532109323A3E12273dc7",
+  fdcVerification: "0x906507E0B64bcD494Db73bd0459d1C667e14B933",
+} as const;
+
 export type HealthStatus = {
   service: typeof productName;
   status: "ok";
