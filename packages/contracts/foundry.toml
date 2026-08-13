@@ -7,3 +7,7 @@ solc_version = "0.8.30"
 
 [fmt]
 line_length = 100
+
+[invariant]
+runs = 128
+depth = 128

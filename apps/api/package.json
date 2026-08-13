@@ -11,6 +11,7 @@
     "check:xrpl": "tsx src/scripts/check-xrpl.ts",
     "dev": "tsx watch src/server.ts",
     "prove:xrpl-payment": "tsx src/scripts/prove-xrpl-payment.ts",
+    "preflight:escrow": "tsx src/scripts/preflight-escrow-deployment.ts",
     "setup:xrpl-wallets": "tsx src/scripts/setup-xrpl-wallets.ts",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",

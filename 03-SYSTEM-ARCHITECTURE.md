@@ -83,16 +83,24 @@ Keep the raw XRPL address in contract events and the database if storing it onch
 
 ```solidity
 bytes32 reference = keccak256(
-    abi.encode(block.chainid, address(this), commitmentId)
+    abi.encode(
+        keccak256("CovenantEscrow.paymentReference.v1"),
+        block.chainid,
+        address(this),
+        msg.sender,
+        commitmentId
+    )
 );
 ```
 
-This binds the reference to one commitment and deployment.
+This binds the reference to one payer, commitment, chain, and deployment. Callers cannot supply or
+reserve references. On XRPL the generated 32 bytes are used unchanged as the sole Memo's MemoData,
+which is Flare's standard XRPL payment-reference format.
 
 ### Core functions
 
 ```solidity
-createCommitment(...)
+createCommitment(...) returns (uint256 commitmentId, bytes32 paymentReference)
 settlePaid(uint256 commitmentId, Payment.Proof calldata proof)
 settleDefault(uint256 commitmentId, ReferencedPaymentNonexistence.Proof calldata proof)
 getCommitment(uint256 commitmentId)

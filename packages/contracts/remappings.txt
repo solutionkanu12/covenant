@@ -1,0 +1,3 @@
+@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
+flare-periphery/=lib/flare-foundry-periphery-package/
+forge-std/=lib/forge-std/src/

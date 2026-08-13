@@ -10,6 +10,7 @@ export default tseslint.config(
       "**/next-env.d.ts",
       "**/node_modules/**",
       "packages/contracts/cache/**",
+      "packages/contracts/lib/**",
       "packages/contracts/out/**",
     ],
   },

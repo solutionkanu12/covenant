@@ -3,4 +3,6 @@ dist
 node_modules
 packages/contracts/cache
 packages/contracts/out
+packages/contracts/lib
+packages/contracts/**/*.sol
 pnpm-lock.yaml

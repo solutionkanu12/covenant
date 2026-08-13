@@ -1,0 +1,9 @@
+[submodule "packages/contracts/lib/openzeppelin-contracts"]
+	path = packages/contracts/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "packages/contracts/lib/flare-foundry-periphery-package"]
+	path = packages/contracts/lib/flare-foundry-periphery-package
+	url = https://github.com/flare-foundation/flare-foundry-periphery-package
+[submodule "packages/contracts/lib/forge-std"]
+	path = packages/contracts/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
