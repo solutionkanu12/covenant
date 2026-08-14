@@ -14,6 +14,7 @@
     "preflight:escrow": "tsx src/scripts/preflight-escrow-deployment.ts",
     "setup:xrpl-wallets": "tsx src/scripts/setup-xrpl-wallets.ts",
     "start": "node dist/server.js",
+    "test": "node --import tsx --test src/**/*.test.ts",
     "typecheck": "tsc --noEmit",
     "verify:fdc-payment": "tsx src/scripts/verify-fdc-payment.ts",
     "verify:fdc-rpn": "tsx src/scripts/verify-fdc-rpn.ts"

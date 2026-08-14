@@ -1,0 +1,14 @@
+begin;
+select plan(10);
+select ok((select relrowsecurity from pg_class where oid = 'public.profiles'::regclass), 'profiles RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.wallet_link_challenges'::regclass), 'challenges RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.commitments'::regclass), 'commitments RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.settlement_events'::regclass), 'settlements RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.notifications'::regclass), 'notifications RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'public.audit_logs'::regclass), 'audit logs RLS enabled');
+select ok(not has_table_privilege('authenticated', 'public.wallet_link_challenges', 'INSERT'), 'clients cannot insert challenges directly');
+select ok(not has_table_privilege('authenticated', 'public.audit_logs', 'INSERT'), 'clients cannot forge audit logs');
+select ok(has_table_privilege('anon', 'public.commitments', 'SELECT'), 'commitments are explicitly public');
+select ok(not has_table_privilege('anon', 'public.notifications', 'SELECT'), 'notifications are private');
+select * from finish();
+rollback;

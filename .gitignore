@@ -7,6 +7,10 @@ node_modules/
 .env.*.local
 !.env.example
 
+# Supabase local state
+supabase/.branches/
+supabase/.temp/
+
 # Next.js
 .next/
 out/
