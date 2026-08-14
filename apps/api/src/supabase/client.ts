@@ -82,6 +82,19 @@ export class SupabaseHttpClient {
           },
           token,
         ),
+      /** Inserts only if no row conflicts on the given columns; returns [] on conflict. */
+      insertIgnoreDuplicates: (body: unknown, onConflict: string) =>
+        this.request<T[]>(
+          `/rest/v1/${table}?on_conflict=${encodeURIComponent(onConflict)}`,
+          {
+            method: "POST",
+            headers: {
+              Prefer: "resolution=ignore-duplicates,return=representation",
+            },
+            body: JSON.stringify(body),
+          },
+          token,
+        ),
       update: (filter: string, body: unknown) =>
         this.request<T[]>(
           `/rest/v1/${table}?${filter}`,

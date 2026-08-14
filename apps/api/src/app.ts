@@ -35,6 +35,12 @@ import {
   type XrplTransactionSource,
 } from "./xrpl/client.js";
 import type { XamanConfig } from "./config.js";
+import { createCoston2FdcClient } from "./fdc/coston2Fdc.js";
+import {
+  preparePaymentRequest,
+  prepareReferencedPaymentNonexistenceRequest,
+} from "./fdc/verifierClient.js";
+import { advanceFdcJob, type FdcExecutorDeps } from "./fdc/jobProcessor.js";
 
 type BackendServices = {
   repository: BackendRepository;
@@ -44,6 +50,7 @@ type BackendServices = {
   pollIntervalMs?: number;
   xrplTransactionSource: XrplTransactionSource;
   xaman?: XamanConfig;
+  fdcDeps: FdcExecutorDeps;
 };
 
 type AppOptions = {
@@ -105,6 +112,35 @@ export function buildApp(options: AppOptions = {}) {
               config.xrplTestnetUrl,
             ),
             xaman: config.xaman,
+            fdcDeps: (() => {
+              const fdc = createCoston2FdcClient(
+                config.coston2RpcUrl,
+                config.coston2ExecutorPrivateKey,
+              );
+              return {
+                preparePayment: preparePaymentRequest,
+                prepareRpn: prepareReferencedPaymentNonexistenceRequest,
+                submitRequest: (bytes) => fdc.submitRequest(bytes),
+                isRoundFinalized: (round) => fdc.isRoundFinalized(round),
+                fetchProof: (bytes, round) => fdc.fetchProof(bytes, round),
+                decodePaymentProof: (hex) => fdc.decodePaymentProof(hex),
+                decodeRpnProof: (hex) => fdc.decodeRpnProof(hex),
+                settlePaid: (address, id, proof, data) =>
+                  fdc.settlePaid(
+                    address,
+                    id,
+                    proof,
+                    data as Parameters<typeof fdc.settlePaid>[3],
+                  ),
+                settleDefault: (address, id, proof, data) =>
+                  fdc.settleDefault(
+                    address,
+                    id,
+                    proof,
+                    data as Parameters<typeof fdc.settleDefault>[3],
+                  ),
+              } satisfies FdcExecutorDeps;
+            })(),
           };
         })());
   const managesIndexer =
@@ -131,14 +167,53 @@ export function buildApp(options: AppOptions = {}) {
       indexerRunning = false;
     }
   };
+  let fdcTimer: NodeJS.Timeout | undefined;
+  let fdcRunning = false;
+  const runFdcJobs = async () => {
+    if (!backend || fdcRunning) return;
+    fdcRunning = true;
+    try {
+      const jobs = await backend.repository.activeFdcJobs();
+      for (const job of jobs) {
+        try {
+          const commitment = await backend.repository.commitmentById(
+            job.commitment_id,
+          );
+          if (!commitment) continue;
+          const updated = await advanceFdcJob(
+            job,
+            commitment,
+            covenantCoston2Deployment.covenantEscrow,
+            backend.fdcDeps,
+            backend.repository,
+          );
+          if (updated.status !== job.status)
+            app.log.info(
+              { jobId: job.id, from: job.status, to: updated.status },
+              "FDC job advanced",
+            );
+        } catch (error) {
+          app.log.error({ err: error, jobId: job.id }, "FDC job step failed");
+        }
+      }
+    } catch (error) {
+      app.log.error({ err: error }, "FDC job polling failed");
+    } finally {
+      fdcRunning = false;
+    }
+  };
   if (managesIndexer && backend) {
     app.addHook("onReady", async () => {
       await runIndexer();
       indexerTimer = setInterval(runIndexer, backend.pollIntervalMs ?? 15_000);
       indexerTimer.unref();
+      await runFdcJobs();
+      fdcTimer = setInterval(runFdcJobs, backend.pollIntervalMs ?? 15_000);
+      fdcTimer.unref();
     });
     app.addHook("onClose", async () => {
       if (indexerTimer) clearInterval(indexerTimer);
+      if (fdcTimer) clearInterval(fdcTimer);
     });
   }
   const administrator = [authenticated, requireAdmin(backend?.repository)];
@@ -327,6 +402,93 @@ export function buildApp(options: AppOptions = {}) {
         destination: result.destination,
         note: "Informational only. Settlement requires a verified FDC proof.",
       };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/api/commitments/:id/prove-payment",
+    async (request, reply) => {
+      if (!backend)
+        return reply.code(503).send({ error: "Backend services unavailable" });
+      if (!/^\d+$/.test(request.params.id))
+        return reply.code(400).send({ error: "Invalid commitment id" });
+      const commitment = await backend.repository.commitment(
+        covenantCoston2Deployment.chainId,
+        covenantCoston2Deployment.covenantEscrow,
+        request.params.id,
+      );
+      if (!commitment)
+        return reply.code(404).send({ error: "Commitment not found" });
+      if (commitment.status !== "active")
+        return reply.code(409).send({ error: "Commitment is not active" });
+      const observation = await backend.repository.latestXrplObservation(
+        commitment.id,
+      );
+      if (!observation)
+        return reply.code(400).send({
+          error:
+            "No validated XRPL payment observation exists for this commitment yet",
+        });
+      const job = await backend.repository.getOrCreateFdcJob(
+        commitment.id,
+        "payment",
+      );
+      const advanced = await advanceFdcJob(
+        job,
+        commitment,
+        covenantCoston2Deployment.covenantEscrow,
+        backend.fdcDeps,
+        backend.repository,
+      );
+      return reply.code(202).send(advanced);
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/api/commitments/:id/prove-default",
+    async (request, reply) => {
+      if (!backend)
+        return reply.code(503).send({ error: "Backend services unavailable" });
+      if (!/^\d+$/.test(request.params.id))
+        return reply.code(400).send({ error: "Invalid commitment id" });
+      const commitment = await backend.repository.commitment(
+        covenantCoston2Deployment.chainId,
+        covenantCoston2Deployment.covenantEscrow,
+        request.params.id,
+      );
+      if (!commitment)
+        return reply.code(404).send({ error: "Commitment not found" });
+      if (commitment.status !== "active")
+        return reply.code(409).send({ error: "Commitment is not active" });
+      if (now() < new Date(commitment.cure_ends_at))
+        return reply
+          .code(409)
+          .send({ error: "Deadline and cure period have not elapsed" });
+      const job = await backend.repository.getOrCreateFdcJob(
+        commitment.id,
+        "referenced_payment_nonexistence",
+      );
+      const advanced = await advanceFdcJob(
+        job,
+        commitment,
+        covenantCoston2Deployment.covenantEscrow,
+        backend.fdcDeps,
+        backend.repository,
+      );
+      return reply.code(202).send(advanced);
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/api/fdc/jobs/:id",
+    async (request, reply) => {
+      if (!backend)
+        return reply.code(503).send({ error: "Backend services unavailable" });
+      if (!/^[0-9a-f-]{36}$/i.test(request.params.id))
+        return reply.code(400).send({ error: "Invalid job id" });
+      const job = await backend.repository.fdcJobById(request.params.id);
+      if (!job) return reply.code(404).send({ error: "Job not found" });
+      return job;
     },
   );
 

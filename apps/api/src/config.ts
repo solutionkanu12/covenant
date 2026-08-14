@@ -14,6 +14,7 @@ export type BackendConfig = SupabaseConfig & {
   indexerPollIntervalMs: number;
   xrplTestnetUrl: string;
   xaman?: XamanConfig;
+  coston2ExecutorPrivateKey?: `0x${string}`;
 };
 
 const expectedXrplTestnetUrl = "wss://s.altnet.rippletest.net:51233";
@@ -60,6 +61,9 @@ export function loadBackendConfig(
     xamanApiKey && xamanApiSecret
       ? { apiKey: xamanApiKey, apiSecret: xamanApiSecret }
       : undefined;
+  const rawExecutorKey = env.COSTON2_EXECUTOR_PRIVATE_KEY;
+  if (rawExecutorKey && !/^0x[0-9a-fA-F]{64}$/.test(rawExecutorKey))
+    throw new Error("Invalid COSTON2_EXECUTOR_PRIVATE_KEY format");
   return {
     ...supabase,
     coston2RpcUrl: new URL(coston2RpcUrl).toString(),
@@ -69,5 +73,6 @@ export function loadBackendConfig(
     indexerPollIntervalMs,
     xrplTestnetUrl,
     xaman,
+    coston2ExecutorPrivateKey: rawExecutorKey as `0x${string}` | undefined,
   };
 }
