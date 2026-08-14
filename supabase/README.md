@@ -13,3 +13,7 @@ must use only the publishable key; the service-role key belongs exclusively to t
 
 Run `supabase db reset` and `supabase test db` when the Supabase CLI and a Docker daemon are
 available.
+
+Phase 3B adds the deployed-contract event checkpoint, server-managed administrator flag, and
+notification idempotency key in `20260814000000_phase_3b_backend.sql`. Apply it to hosted Supabase
+through the approved production migration workflow before starting the Phase 3B API.

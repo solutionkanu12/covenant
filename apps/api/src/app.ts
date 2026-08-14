@@ -1,7 +1,8 @@
 import Fastify from "fastify";
-import { productName } from "@covenant/shared";
-import { loadSupabaseConfig } from "./config.js";
+import { covenantCoston2Deployment, productName } from "@covenant/shared";
+import { loadBackendConfig, loadSupabaseConfig } from "./config.js";
 import { requireAuthentication } from "./auth/middleware.js";
+import { requireAdmin } from "./auth/admin.js";
 import {
   createWalletChallenge,
   hashNonce,
@@ -12,11 +13,28 @@ import {
   type SupabaseHttpClient,
 } from "./supabase/client.js";
 import { createSupabaseAdminClient } from "./supabase/admin.js";
+import { BackendRepository } from "./backend/repository.js";
+import { CovenantIndexer } from "./backend/indexer.js";
+import {
+  createCoston2EventSource,
+  type CovenantEventSource,
+} from "./chain/coston2.js";
+import { commitmentAnalytics } from "./backend/analytics.js";
+import { createHash, timingSafeEqual } from "node:crypto";
+
+type BackendServices = {
+  repository: BackendRepository;
+  indexer: CovenantIndexer;
+  eventSource: CovenantEventSource;
+  internalApiSecret: string;
+  pollIntervalMs?: number;
+};
 
 type AppOptions = {
   supabase?: SupabaseHttpClient;
   admin?: SupabaseHttpClient;
   now?: () => Date;
+  backend?: BackendServices;
 };
 type Credentials = { email?: string; password?: string };
 type WalletBody = {
@@ -45,11 +63,133 @@ export function buildApp(options: AppOptions = {}) {
   const admin = options.admin ?? createSupabaseAdminClient();
   const authenticated = requireAuthentication(supabase);
   const now = options.now ?? (() => new Date());
+  const backend =
+    options.backend ??
+    (options.supabase || options.admin
+      ? undefined
+      : (() => {
+          const config = loadBackendConfig();
+          const repository = new BackendRepository(admin);
+          const eventSource = createCoston2EventSource(
+            config.coston2RpcUrl,
+            covenantCoston2Deployment.covenantEscrow,
+          );
+          return {
+            repository,
+            eventSource,
+            internalApiSecret: config.internalApiSecret,
+            pollIntervalMs: config.indexerPollIntervalMs,
+            indexer: new CovenantIndexer(eventSource, repository, {
+              chainId: covenantCoston2Deployment.chainId,
+              contractAddress: covenantCoston2Deployment.covenantEscrow,
+              startBlock: config.indexerStartBlock,
+              batchSize: config.indexerBatchSize,
+            }),
+          };
+        })());
+  const managesIndexer =
+    !options.backend && !options.supabase && !options.admin;
+  let indexerTimer: NodeJS.Timeout | undefined;
+  let indexerRunning = false;
+  const runIndexer = async () => {
+    if (!backend || indexerRunning) return;
+    indexerRunning = true;
+    try {
+      const result = await backend.indexer.sync();
+      app.log.info(
+        {
+          fromBlock: result.fromBlock.toString(),
+          toBlock: result.toBlock.toString(),
+          eventsProcessed: result.eventsProcessed,
+          caughtUp: result.caughtUp,
+        },
+        "Covenant event synchronization completed",
+      );
+    } catch (error) {
+      app.log.error({ err: error }, "Covenant event synchronization failed");
+    } finally {
+      indexerRunning = false;
+    }
+  };
+  if (managesIndexer && backend) {
+    app.addHook("onReady", async () => {
+      await runIndexer();
+      indexerTimer = setInterval(runIndexer, backend.pollIntervalMs ?? 15_000);
+      indexerTimer.unref();
+    });
+    app.addHook("onClose", async () => {
+      if (indexerTimer) clearInterval(indexerTimer);
+    });
+  }
+  const administrator = [authenticated, requireAdmin(backend?.repository)];
 
-  app.get("/health", async () => ({
-    service: productName,
-    status: "ok",
-  }));
+  app.get("/health", async (_request, reply) => {
+    if (!backend)
+      return { service: productName, status: "ok", dependencies: {} };
+    const checks = await Promise.allSettled([
+      backend.repository.health(),
+      backend.eventSource.blockNumber(),
+    ]);
+    const dependencies = {
+      supabase: checks[0].status === "fulfilled" ? "ok" : "error",
+      coston2: checks[1].status === "fulfilled" ? "ok" : "error",
+    };
+    const healthy = Object.values(dependencies).every(
+      (value) => value === "ok",
+    );
+    return reply.code(healthy ? 200 : 503).send({
+      service: productName,
+      status: healthy ? "ok" : "degraded",
+      dependencies,
+    });
+  });
+
+  app.get<{
+    Querystring: { status?: string; wallet?: string; limit?: string };
+  }>("/api/commitments", async (request, reply) => {
+    if (!backend)
+      return reply.code(503).send({ error: "Backend services unavailable" });
+    const filters: string[] = [];
+    if (request.query.status) {
+      if (
+        !new Set(["active", "fulfilled", "defaulted"]).has(request.query.status)
+      )
+        return reply.code(400).send({ error: "Invalid commitment status" });
+      filters.push(`status=eq.${request.query.status}`);
+    }
+    if (request.query.wallet) {
+      if (!/^0x[0-9a-fA-F]{40}$/.test(request.query.wallet))
+        return reply.code(400).send({ error: "Invalid wallet address" });
+      filters.push(
+        `or=(payer_flare_address.ilike.${request.query.wallet},recipient_flare_address.ilike.${request.query.wallet})`,
+      );
+    }
+    const limit = Math.min(Math.max(Number(request.query.limit ?? 50), 1), 100);
+    if (!Number.isInteger(limit))
+      return reply.code(400).send({ error: "Invalid result limit" });
+    filters.push("order=created_at.desc", `limit=${limit}`);
+    return backend.repository.listCommitments(filters.join("&"));
+  });
+
+  app.get<{ Params: { id: string } }>(
+    "/api/commitments/:id",
+    async (request, reply) => {
+      if (!backend)
+        return reply.code(503).send({ error: "Backend services unavailable" });
+      if (!/^\d+$/.test(request.params.id))
+        return reply.code(400).send({ error: "Invalid commitment id" });
+      const row = await backend.repository.commitment(
+        covenantCoston2Deployment.chainId,
+        covenantCoston2Deployment.covenantEscrow,
+        request.params.id,
+      );
+      if (!row) return reply.code(404).send({ error: "Commitment not found" });
+      return {
+        commitment: row,
+        evidence: await backend.repository.settlementEvents(row.id),
+      };
+    },
+  );
 
   app.post<{ Body: Credentials }>(
     "/api/auth/signup",
@@ -209,6 +349,80 @@ export function buildApp(options: AppOptions = {}) {
       return profile;
     },
   );
+
+  app.get(
+    "/api/notifications",
+    { preHandler: authenticated },
+    async (request) =>
+      supabase
+        .from("notifications", request.accessToken)
+        .select(
+          "id,kind,title,body,read_at,created_at",
+          `user_id=eq.${request.authUser!.id}&order=created_at.desc&limit=100`,
+        ),
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    "/api/notifications/:id/read",
+    { preHandler: authenticated },
+    async (request, reply) => {
+      if (!/^[0-9a-f-]{36}$/i.test(request.params.id))
+        return reply.code(400).send({ error: "Invalid notification id" });
+      const rows = await supabase
+        .from("notifications", request.accessToken)
+        .update(
+          `id=eq.${request.params.id}&user_id=eq.${request.authUser!.id}`,
+          { read_at: now().toISOString() },
+        );
+      return (
+        rows[0] ?? reply.code(404).send({ error: "Notification not found" })
+      );
+    },
+  );
+
+  app.get(
+    "/api/admin/analytics",
+    { preHandler: administrator },
+    async (_request, reply) => {
+      if (!backend)
+        return reply.code(503).send({ error: "Backend services unavailable" });
+      return commitmentAnalytics(
+        await backend.repository.listCommitments("limit=10000"),
+      );
+    },
+  );
+
+  app.get(
+    "/api/admin/commitments",
+    { preHandler: administrator },
+    async (_request, reply) => {
+      if (!backend)
+        return reply.code(503).send({ error: "Backend services unavailable" });
+      return backend.repository.listCommitments(
+        "order=created_at.desc&limit=1000",
+      );
+    },
+  );
+
+  app.post("/api/indexer/sync", async (request, reply) => {
+    if (!backend)
+      return reply.code(503).send({ error: "Backend services unavailable" });
+    const supplied = request.headers["x-internal-api-secret"];
+    const actual = createHash("sha256")
+      .update(backend.internalApiSecret)
+      .digest();
+    const candidate = createHash("sha256")
+      .update(typeof supplied === "string" ? supplied : "")
+      .digest();
+    if (!timingSafeEqual(actual, candidate))
+      return reply.code(401).send({ error: "Invalid internal API secret" });
+    const result = await backend.indexer.sync();
+    return {
+      ...result,
+      fromBlock: result.fromBlock.toString(),
+      toBlock: result.toBlock.toString(),
+    };
+  });
 
   return app;
 }

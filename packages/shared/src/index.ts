@@ -4,6 +4,7 @@ export type { Database, Json } from "./database.types.js";
 export const covenantCoston2Deployment = {
   chainId: 114,
   covenantEscrow: "0x841F714A57Ba1B1A77ef8b3732aCf825D593f017",
+  deploymentBlock: 34013106n,
   collateralToken: "0x0b6A3645c240605887a5532109323A3E12273dc7",
   fdcVerification: "0x906507E0B64bcD494Db73bd0459d1C667e14B933",
 } as const;
@@ -39,7 +40,7 @@ export const covenantEscrowCreateAbi = [
     inputs: [
       { name: "commitmentId", type: "uint256", indexed: true },
       { name: "payer", type: "address", indexed: true },
-      { name: "beneficiary", type: "address", indexed: false },
+      { name: "beneficiary", type: "address", indexed: true },
       { name: "xrplDestinationHash", type: "bytes32", indexed: false },
       { name: "xrpAmountDrops", type: "uint256", indexed: false },
       { name: "collateralAmount", type: "uint256", indexed: false },
@@ -47,6 +48,15 @@ export const covenantEscrowCreateAbi = [
       { name: "deadlineLedger", type: "uint64", indexed: false },
       { name: "deadlineTimestamp", type: "uint64", indexed: false },
       { name: "paymentReference", type: "bytes32", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "CommitmentSettled",
+    inputs: [
+      { name: "commitmentId", type: "uint256", indexed: true },
+      { name: "status", type: "uint8", indexed: false },
+      { name: "recipient", type: "address", indexed: false },
     ],
   },
 ] as const;

@@ -49,6 +49,9 @@ export class SupabaseHttpClient {
   getUser(token: string) {
     return this.request<AuthUser>("/auth/v1/user", {}, token);
   }
+  health() {
+    return this.request<unknown[]>("/rest/v1/commitments?select=id&limit=1");
+  }
   from<T>(table: string, token?: string) {
     return {
       select: (query = "*", filter = "") =>
@@ -63,6 +66,18 @@ export class SupabaseHttpClient {
           {
             method: "POST",
             headers: { Prefer: "return=representation" },
+            body: JSON.stringify(body),
+          },
+          token,
+        ),
+      upsert: (body: unknown, onConflict: string) =>
+        this.request<T[]>(
+          `/rest/v1/${table}?on_conflict=${encodeURIComponent(onConflict)}`,
+          {
+            method: "POST",
+            headers: {
+              Prefer: "resolution=merge-duplicates,return=representation",
+            },
             body: JSON.stringify(body),
           },
           token,

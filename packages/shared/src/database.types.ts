@@ -21,6 +21,7 @@ export type Database = {
           id: string;
           display_name: string | null;
           wallet_address: string | null;
+          is_admin: boolean;
           updated_at: string;
         }
       >;
@@ -44,18 +45,22 @@ export type Database = {
           commitment_id: string;
           payer_flare_address: string;
           recipient_flare_address: string;
-          recipient_xrpl_address: string;
+          recipient_xrpl_address: string | null;
           recipient_xrpl_address_hash: string;
           xrp_amount_drops: string;
           fxrp_bond_amount: string;
           payment_reference: string;
           start_xrpl_ledger: number;
+          minimal_ledger: number | null;
+          deadline_ledger: number | null;
           deadline_at: string;
           cure_ends_at: string;
           status: "active" | "fulfilled" | "defaulted";
           create_tx_hash: string;
           settlement_tx_hash: string | null;
           updated_at: string;
+          indexed_block_number: number | null;
+          indexed_log_index: number | null;
         }
       >;
       settlement_events: Table<
@@ -77,8 +82,15 @@ export type Database = {
           title: string;
           body: string;
           read_at: string | null;
+          source_event_key: string | null;
         }
       >;
+      indexer_checkpoints: Table<{
+        chain_id: number;
+        contract_address: string;
+        last_processed_block: number;
+        updated_at: string;
+      }>;
       audit_logs: Table<
         Timestamped & {
           id: number;
