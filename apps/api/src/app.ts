@@ -21,6 +21,20 @@ import {
 } from "./chain/coston2.js";
 import { commitmentAnalytics } from "./backend/analytics.js";
 import { createHash, timingSafeEqual } from "node:crypto";
+import {
+  matchesCommittedDestination,
+  isValidXrplDestination,
+} from "./xrpl/reference.js";
+import {
+  buildXrplPaymentPayload,
+  createXamanPayload,
+} from "./xrpl/paymentRequest.js";
+import { validateObservedPayment } from "./xrpl/observation.js";
+import {
+  createXrplTransactionSource,
+  type XrplTransactionSource,
+} from "./xrpl/client.js";
+import type { XamanConfig } from "./config.js";
 
 type BackendServices = {
   repository: BackendRepository;
@@ -28,6 +42,8 @@ type BackendServices = {
   eventSource: CovenantEventSource;
   internalApiSecret: string;
   pollIntervalMs?: number;
+  xrplTransactionSource: XrplTransactionSource;
+  xaman?: XamanConfig;
 };
 
 type AppOptions = {
@@ -85,6 +101,10 @@ export function buildApp(options: AppOptions = {}) {
               startBlock: config.indexerStartBlock,
               batchSize: config.indexerBatchSize,
             }),
+            xrplTransactionSource: createXrplTransactionSource(
+              config.xrplTestnetUrl,
+            ),
+            xaman: config.xaman,
           };
         })());
   const managesIndexer =
@@ -187,6 +207,125 @@ export function buildApp(options: AppOptions = {}) {
       return {
         commitment: row,
         evidence: await backend.repository.settlementEvents(row.id),
+      };
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: { xrplDestinationAddress?: string } }>(
+    "/api/commitments/:id/payment-request",
+    async (request, reply) => {
+      if (!backend)
+        return reply.code(503).send({ error: "Backend services unavailable" });
+      if (!/^\d+$/.test(request.params.id))
+        return reply.code(400).send({ error: "Invalid commitment id" });
+      const commitment = await backend.repository.commitment(
+        covenantCoston2Deployment.chainId,
+        covenantCoston2Deployment.covenantEscrow,
+        request.params.id,
+      );
+      if (!commitment)
+        return reply.code(404).send({ error: "Commitment not found" });
+      if (commitment.status !== "active")
+        return reply
+          .code(409)
+          .send({ error: "Commitment is not active" });
+      const destination = request.body?.xrplDestinationAddress;
+      if (typeof destination !== "string" || !isValidXrplDestination(destination))
+        return reply
+          .code(400)
+          .send({ error: "A valid XRPL destination address is required" });
+      if (
+        !matchesCommittedDestination(
+          destination,
+          commitment.recipient_xrpl_address_hash,
+        )
+      )
+        return reply.code(400).send({
+          error: "Destination address does not match the committed XRPL destination",
+        });
+      const payload = buildXrplPaymentPayload({
+        destination,
+        amountDrops: commitment.xrp_amount_drops,
+        paymentReference: commitment.payment_reference,
+      });
+      if (destination !== commitment.recipient_xrpl_address)
+        await backend.repository.updateCommitment(commitment.id, {
+          recipient_xrpl_address: destination,
+          updated_at: new Date().toISOString(),
+        });
+      let xaman: { uuid: string; qrPng: string; deeplink: string } | null = null;
+      if (backend.xaman) {
+        try {
+          xaman = await createXamanPayload(backend.xaman, payload);
+        } catch (error) {
+          app.log.error({ err: error }, "Xaman payload creation failed");
+        }
+      }
+      return {
+        commitmentId: request.params.id,
+        transaction: payload,
+        transactionJson: JSON.stringify(payload, null, 2),
+        xaman,
+      };
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: { transactionHash?: string } }>(
+    "/api/commitments/:id/payment-observation",
+    async (request, reply) => {
+      if (!backend)
+        return reply.code(503).send({ error: "Backend services unavailable" });
+      if (!/^\d+$/.test(request.params.id))
+        return reply.code(400).send({ error: "Invalid commitment id" });
+      const transactionHash = request.body?.transactionHash;
+      if (
+        typeof transactionHash !== "string" ||
+        !/^[0-9A-Fa-f]{64}$/.test(transactionHash)
+      )
+        return reply
+          .code(400)
+          .send({ error: "A valid XRPL transaction hash is required" });
+      const commitment = await backend.repository.commitment(
+        covenantCoston2Deployment.chainId,
+        covenantCoston2Deployment.covenantEscrow,
+        request.params.id,
+      );
+      if (!commitment)
+        return reply.code(404).send({ error: "Commitment not found" });
+      const fetched =
+        await backend.xrplTransactionSource.fetchTransaction(transactionHash);
+      if (!fetched)
+        return reply
+          .code(404)
+          .send({ error: "Transaction not found or not yet validated" });
+      const result = validateObservedPayment(
+        fetched.transaction,
+        fetched.meta,
+        fetched.validated,
+        {
+          destinationHash: commitment.recipient_xrpl_address_hash,
+          amountDrops: BigInt(commitment.xrp_amount_drops),
+          paymentReference: commitment.payment_reference,
+        },
+      );
+      if (!result.valid)
+        return reply.code(422).send({ observed: true, valid: false, errors: result.errors });
+      await backend.repository.recordXrplObservation({
+        commitment_id: commitment.id,
+        transaction_hash: transactionHash.toUpperCase(),
+        ledger_index: fetched.ledgerIndex,
+        validated: fetched.validated,
+        destination: result.destination,
+        delivered_amount_drops: result.deliveredAmountDrops,
+        payment_reference: commitment.payment_reference,
+      });
+      return {
+        observed: true,
+        valid: true,
+        ledgerIndex: fetched.ledgerIndex,
+        deliveredAmountDrops: result.deliveredAmountDrops,
+        destination: result.destination,
+        note: "Informational only. Settlement requires a verified FDC proof.",
       };
     },
   );

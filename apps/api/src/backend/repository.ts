@@ -132,4 +132,10 @@ export class BackendRepository {
   notify(body: Record<string, unknown>) {
     return this.admin.from("notifications").upsert(body, "source_event_key");
   }
+
+  recordXrplObservation(body: Record<string, unknown>) {
+    return this.admin
+      .from("xrpl_observations")
+      .upsert(body, "commitment_id,transaction_hash");
+  }
 }

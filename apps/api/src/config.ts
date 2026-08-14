@@ -4,13 +4,19 @@ export type SupabaseConfig = {
   serviceRoleKey: string;
 };
 
+export type XamanConfig = { apiKey: string; apiSecret: string };
+
 export type BackendConfig = SupabaseConfig & {
   coston2RpcUrl: string;
   internalApiSecret: string;
   indexerStartBlock: bigint;
   indexerBatchSize: bigint;
   indexerPollIntervalMs: number;
+  xrplTestnetUrl: string;
+  xaman?: XamanConfig;
 };
+
+const expectedXrplTestnetUrl = "wss://s.altnet.rippletest.net:51233";
 
 export function loadSupabaseConfig(
   env: NodeJS.ProcessEnv = process.env,
@@ -43,6 +49,17 @@ export function loadBackendConfig(
     throw new Error("Invalid indexer block configuration");
   if (!Number.isInteger(indexerPollIntervalMs) || indexerPollIntervalMs < 5_000)
     throw new Error("Invalid indexer poll interval");
+  const xrplTestnetUrl = env.XRPL_TESTNET_URL ?? expectedXrplTestnetUrl;
+  if (xrplTestnetUrl !== expectedXrplTestnetUrl)
+    throw new Error(
+      `Phase 6 is locked to XRPL Testnet at ${expectedXrplTestnetUrl}; refusing ${xrplTestnetUrl}`,
+    );
+  const xamanApiKey = env.XAMAN_API_KEY;
+  const xamanApiSecret = env.XAMAN_API_SECRET;
+  const xaman =
+    xamanApiKey && xamanApiSecret
+      ? { apiKey: xamanApiKey, apiSecret: xamanApiSecret }
+      : undefined;
   return {
     ...supabase,
     coston2RpcUrl: new URL(coston2RpcUrl).toString(),
@@ -50,5 +67,7 @@ export function loadBackendConfig(
     indexerStartBlock,
     indexerBatchSize,
     indexerPollIntervalMs,
+    xrplTestnetUrl,
+    xaman,
   };
 }
