@@ -1,4 +1,4 @@
-import { Client } from "xrpl";
+import { Client, rippleTimeToUnixTime } from "xrpl";
 import type { ObservedMeta, ObservedTransaction } from "./observation.js";
 
 export type FetchedTransaction = {
@@ -45,6 +45,40 @@ export function createXrplTransactionSource(
         )
           return undefined;
         throw error;
+      } finally {
+        if (client.isConnected()) await client.disconnect();
+      }
+    },
+  };
+}
+
+export type XrplLedgerSnapshot = { ledgerIndex: number; closeTimeUnix: number };
+
+export interface XrplLedgerSource {
+  /** The most recent validated (finalized) XRPL ledger. Public, read-only, no secrets. */
+  currentLedger(): Promise<XrplLedgerSnapshot>;
+}
+
+export function createXrplLedgerSource(wsUrl: string): XrplLedgerSource {
+  return {
+    async currentLedger() {
+      const client = new Client(wsUrl, { connectionTimeout: 15_000 });
+      try {
+        await client.connect();
+        const response = await client.request({
+          command: "ledger",
+          ledger_index: "validated",
+        });
+        const result = response.result as unknown as {
+          ledger_index: number;
+          ledger: { close_time: number };
+        };
+        return {
+          ledgerIndex: result.ledger_index,
+          closeTimeUnix: Math.floor(
+            rippleTimeToUnixTime(result.ledger.close_time) / 1000,
+          ),
+        };
       } finally {
         if (client.isConnected()) await client.disconnect();
       }

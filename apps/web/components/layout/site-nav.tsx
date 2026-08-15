@@ -5,6 +5,7 @@ import { ConnectButton } from "@/components/wallet/connect-button";
 import { MobileMenu, type NavLink } from "./mobile-menu";
 
 const navLinks: NavLink[] = [
+  { href: "/vault", label: "Vault" },
   { href: "/#how-it-works", label: "How it works" },
   { href: "/#deployment", label: "Deployment" },
 ];

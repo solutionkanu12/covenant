@@ -32,7 +32,9 @@ import {
 import { validateObservedPayment } from "./xrpl/observation.js";
 import {
   createXrplTransactionSource,
+  createXrplLedgerSource,
   type XrplTransactionSource,
+  type XrplLedgerSource,
 } from "./xrpl/client.js";
 import type { XamanConfig } from "./config.js";
 import { createCoston2FdcClient } from "./fdc/coston2Fdc.js";
@@ -49,6 +51,7 @@ type BackendServices = {
   internalApiSecret: string;
   pollIntervalMs?: number;
   xrplTransactionSource: XrplTransactionSource;
+  xrplLedgerSource: XrplLedgerSource;
   xaman?: XamanConfig;
   fdcDeps: FdcExecutorDeps;
 };
@@ -111,6 +114,7 @@ export function buildApp(options: AppOptions = {}) {
             xrplTransactionSource: createXrplTransactionSource(
               config.xrplTestnetUrl,
             ),
+            xrplLedgerSource: createXrplLedgerSource(config.xrplTestnetUrl),
             xaman: config.xaman,
             fdcDeps: (() => {
               const fdc = createCoston2FdcClient(
@@ -237,6 +241,17 @@ export function buildApp(options: AppOptions = {}) {
       status: healthy ? "ok" : "degraded",
       dependencies,
     });
+  });
+
+  app.get("/api/xrpl/ledger", async (_request, reply) => {
+    if (!backend)
+      return reply.code(503).send({ error: "Backend services unavailable" });
+    try {
+      return await backend.xrplLedgerSource.currentLedger();
+    } catch (error) {
+      app.log.error({ err: error }, "XRPL ledger lookup failed");
+      return reply.code(502).send({ error: "XRPL ledger lookup failed" });
+    }
   });
 
   app.get<{

@@ -30,3 +30,25 @@ export function formatTokenAmount(
   }
   return `${negative ? "-" : ""}${whole.toString()}.${fractionText}`;
 }
+
+/**
+ * Parses a decimal string typed by a user (e.g. "12.5") into base units for a token with the
+ * given decimals. Throws on empty, negative, non-numeric or over-precise input so callers can
+ * surface a validation error instead of silently truncating an amount.
+ */
+export function parseTokenAmount(value: string, decimals: number): bigint {
+  const trimmed = value.trim();
+  if (!/^\d+(\.\d+)?$/.test(trimmed)) {
+    throw new Error("Enter a positive number");
+  }
+  const [wholePart, fractionPart = ""] = trimmed.split(".");
+  if (fractionPart.length > decimals) {
+    throw new Error(`Enter at most ${decimals} decimal places`);
+  }
+  const base = 10n ** BigInt(decimals);
+  const amount = BigInt(wholePart) * base + BigInt(fractionPart.padEnd(decimals, "0") || "0");
+  if (amount <= 0n) {
+    throw new Error("Enter an amount greater than zero");
+  }
+  return amount;
+}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { formatTokenAmount, truncateHex } from "./format";
+import { formatTokenAmount, parseTokenAmount, truncateHex } from "./format";
 
 describe("truncateHex", () => {
   it("shortens a full address with an ellipsis", () => {
@@ -36,5 +36,26 @@ describe("formatTokenAmount", () => {
 
   it("keeps the sign on negative amounts", () => {
     assert.equal(formatTokenAmount(-2_500_000n, 6), "-2.5");
+  });
+});
+
+describe("parseTokenAmount", () => {
+  it("parses a whole number into base units", () => {
+    assert.equal(parseTokenAmount("12", 6), 12_000_000n);
+  });
+
+  it("parses a fractional amount into base units", () => {
+    assert.equal(parseTokenAmount("0.02", 6), 20_000n);
+  });
+
+  it("rejects empty or non-numeric input", () => {
+    assert.throws(() => parseTokenAmount("", 6));
+    assert.throws(() => parseTokenAmount("abc", 6));
+    assert.throws(() => parseTokenAmount("-1", 6));
+  });
+
+  it("rejects zero and over-precise input", () => {
+    assert.throws(() => parseTokenAmount("0", 6));
+    assert.throws(() => parseTokenAmount("1.1234567", 6));
   });
 });

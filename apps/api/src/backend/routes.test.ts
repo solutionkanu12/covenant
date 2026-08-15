@@ -9,7 +9,7 @@ import type {
 } from "./repository.js";
 import type { CovenantEventSource } from "../chain/coston2.js";
 import type { SupabaseHttpClient } from "../supabase/client.js";
-import type { XrplTransactionSource } from "../xrpl/client.js";
+import type { XrplTransactionSource, XrplLedgerSource } from "../xrpl/client.js";
 import type { FdcExecutorDeps } from "../fdc/jobProcessor.js";
 
 const destination = "rBrGGQy5GwFwL4fs9C2YFLquD5ZQYtj8Dw";
@@ -31,6 +31,10 @@ const row = {
 
 function noopXrplSource(): XrplTransactionSource {
   return { fetchTransaction: async () => undefined };
+}
+
+function stubLedgerSource(): XrplLedgerSource {
+  return { currentLedger: async () => ({ ledgerIndex: 19921624, closeTimeUnix: 1786500000 }) };
 }
 
 function noopFdcDeps(): FdcExecutorDeps {
@@ -118,12 +122,19 @@ test("backend routes expose public data and protect admin and sync operations", 
       eventSource,
       internalApiSecret: "secret",
       xrplTransactionSource: noopXrplSource(),
+      xrplLedgerSource: stubLedgerSource(),
       fdcDeps: noopFdcDeps(),
     },
   });
 
   assert.equal((await app.inject({ url: "/health" })).statusCode, 200);
   assert.equal((await app.inject({ url: "/api/commitments" })).statusCode, 200);
+  const ledger = await app.inject({ url: "/api/xrpl/ledger" });
+  assert.equal(ledger.statusCode, 200);
+  assert.deepEqual(ledger.json(), {
+    ledgerIndex: 19921624,
+    closeTimeUnix: 1786500000,
+  });
   assert.equal(
     (
       await app.inject({
@@ -253,6 +264,7 @@ function buildPaymentTestApp(overrides: {
       xrplTransactionSource: {
         fetchTransaction: overrides.fetchTransaction ?? (async () => undefined),
       },
+      xrplLedgerSource: stubLedgerSource(),
       fdcDeps: { ...noopFdcDeps(), ...overrides.fdcDeps },
     },
   });

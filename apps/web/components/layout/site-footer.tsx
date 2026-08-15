@@ -5,6 +5,8 @@ import { LogoMark } from "@/components/brand/logo";
 import { coston2ExplorerUrl, explorerAddressUrl } from "@/lib/chains";
 
 const protocolLinks = [
+  { href: "/vault", label: "Vault" },
+  { href: "/commitments/new", label: "New commitment" },
   { href: "/#how-it-works", label: "How it works" },
   { href: "/#deployment", label: "Deployment" },
 ];
