@@ -1,9 +1,70 @@
 @import "tailwindcss";
 
-:root {
-  color-scheme: light;
+@theme {
+  --font-sans:
+    "Manrope Variable", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", monospace;
+
+  --color-paper: #f5f3ec;
+  --color-surface: #fbfaf5;
+  --color-surface-sunken: #efece3;
+  --color-ink: #1a1712;
+  --color-ink-raised: #2c2721;
+  --color-ink-soft: #57534a;
+  --color-muted: #6f6759;
+  --color-line: #e4dfd2;
+  --color-line-strong: #d2ccbc;
+  --color-accent: #2b4bd8;
+  --color-accent-strong: #1e3ab4;
+  --color-accent-soft: #e8edfb;
+  --color-success: #1d7a46;
+  --color-success-soft: #e2f1e7;
+  --color-warning: #8f620c;
+  --color-warning-soft: #f6ecd6;
+  --color-danger: #b2352b;
+  --color-danger-soft: #f7e3e0;
+
+  --shadow-card: 0 1px 2px rgb(26 23 18 / 0.05);
+  --shadow-dialog: 0 12px 40px rgb(26 23 18 / 0.14);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-body {
-  margin: 0;
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: var(--color-accent-soft);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

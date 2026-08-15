@@ -14,7 +14,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
-    "test": "pnpm --filter @covenant/api test",
+    "test": "pnpm -r --if-present test",
     "test:contracts": "pnpm --dir packages/contracts test",
     "typecheck": "pnpm -r --if-present typecheck"
   },
