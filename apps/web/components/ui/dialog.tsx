@@ -112,7 +112,7 @@ export function Dialog({
         "fixed inset-0 z-50 flex items-end justify-center p-4 transition-opacity duration-200 ease-out-soft sm:items-center",
         visible ? "opacity-100" : "opacity-0",
       )}
-      style={{ backgroundColor: "rgb(26 23 18 / 0.45)" }}
+      style={{ backgroundColor: "rgb(9 10 10 / 0.72)" }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose();

@@ -37,5 +37,5 @@ proof (Phase 7) does that, re-deriving the delivered amount independently onchai
 ## Storage
 
 `supabase/migrations/20260814020000_phase_6_xrpl_observations.sql` adds the
-`xrpl_observations` table from `03-SYSTEM-ARCHITECTURE.md`, publicly readable like other
+`xrpl_observations` table described in `docs/ARCHITECTURE.md`, publicly readable like other
 evidence tables and writable only by `service_role`.

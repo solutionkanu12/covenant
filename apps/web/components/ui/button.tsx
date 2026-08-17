@@ -3,15 +3,28 @@ import type { ButtonHTMLAttributes } from "react";
 import { cx } from "@/lib/cx";
 import { Spinner } from "./spinner";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "ghost"
+  | "danger"
+  | "primaryOnDark"
+  | "secondaryOnDark"
+  | "ghostOnDark";
 export type ButtonSize = "sm" | "md";
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: "bg-ink text-paper hover:bg-ink-raised disabled:hover:bg-ink",
+  primary:
+    "bg-accent text-ink hover:bg-accent-strong disabled:hover:bg-accent",
   secondary:
-    "border border-line-strong bg-surface text-ink hover:bg-surface-sunken disabled:hover:bg-surface",
-  ghost: "text-ink-soft hover:bg-surface-sunken hover:text-ink",
-  danger: "bg-danger text-paper hover:bg-ink disabled:hover:bg-danger",
+    "border border-line-strong bg-surface text-ink hover:bg-raised disabled:hover:bg-surface",
+  ghost: "text-ink-soft hover:bg-raised hover:text-ink",
+  danger: "bg-danger text-ink hover:bg-accent-strong disabled:hover:bg-danger",
+  primaryOnDark:
+    "bg-accent text-ink hover:bg-accent-strong disabled:hover:bg-accent",
+  secondaryOnDark:
+    "border border-line bg-transparent text-ink hover:bg-white/8 disabled:hover:bg-transparent",
+  ghostOnDark: "text-ink hover:bg-white/8",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -29,8 +42,10 @@ export function buttonClasses({
   className?: string;
 } = {}): string {
   return cx(
-    "inline-flex select-none items-center justify-center rounded-full font-semibold whitespace-nowrap transition-colors duration-150 ease-out-soft",
-    "disabled:cursor-not-allowed disabled:opacity-50",
+    "inline-flex select-none items-center justify-center rounded-full font-semibold whitespace-nowrap",
+    "transition-[transform,color,background-color,border-color] duration-[160ms] ease-out-soft",
+    "hover:scale-[0.96] motion-reduce:hover:scale-100",
+    "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100",
     variantClasses[variant],
     sizeClasses[size],
     className,

@@ -13,6 +13,12 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${apiOrigin}/api/:path*` }];
   },
+  async redirects() {
+    return [
+      { source: "/legal/terms", destination: "/terms", permanent: false },
+      { source: "/legal/privacy", destination: "/privacy", permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;

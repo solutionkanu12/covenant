@@ -1,0 +1,37 @@
+# Provenance
+
+## What existed before this hackathon
+
+Nothing. The repository's first commit (`63e4569`, "chore: initialize Phase 0 monorepo") is the start of the project. Every contract, backend route, database migration, and frontend screen in this repository was built during Flare Summer Signal.
+
+## What was built, by phase
+
+The commits below are the actual `git log` for this repository, oldest first. Each phase's scope is described from what its commit changed, not from the original plan.
+
+| Commit | Phase | What it added |
+| --- | --- | --- |
+| `63e4569` | Phase 0 | Monorepo foundation: `apps/web`, `apps/api`, `packages/contracts`, `packages/shared`, tooling (pnpm, TypeScript, Foundry, lint, format). |
+| `fa2acd4` | Phase 1A | Read-only network checks confirming Coston2 RPC, XRPL Testnet, and the FDC verifier are reachable, with no wallets or transactions involved. |
+| `bc26e3d` | Phase 1B | A real, referenced XRP payment sent and verified on XRPL Testnet, with a sanitized fixture and a recovery-only verification script. |
+| `b4d5103` | Phase 1C | That Phase 1B payment proved through Flare FDC as a `Payment` attestation: request submitted, round finalized, proof retrieved and verified via `eth_call`. |
+| `b6636bb` | Phase 1D | A `ReferencedPaymentNonexistence` attestation proving a specific expected payment did not occur in a defined XRPL ledger window. |
+| `114ccba` | Contract | `CovenantEscrow.sol`: the commitment struct, reference generation, `createCommitment`, `settlePaid`, `settleDefault`, and their Foundry unit/invariant tests. |
+| `8111594` | Deployment | `CovenantEscrow` deployed to Coston2; address, deployment block, transaction hash, and gas usage recorded and confirmed live via RPC. |
+| `d03b77f` | Auth foundation | Supabase schema and row-level security for `profiles`, `wallet_link_challenges`, `commitments`, `settlement_events`, `notifications`, and `audit_logs`; wallet-link challenge/verify flow. |
+| `c63e53e` | Phase 3B | The API's connection to the deployed contract and Supabase: the event indexer, `GET /api/commitments`, `GET /api/commitments/:id`, `POST /api/indexer/sync`, notifications, and admin routes. |
+| `f3378c7` | Phase 6 | The safe XRPL payment flow: exact payment payload generation bound to the commitment, destination hash verification, Xaman payload support, and XRPL payment observation/validation. |
+| `e9dab54` | Phase 7 | The FDC executor: the persisted job state machine, request preparation and submission, round polling, proof retrieval, and settlement submission for both the payment and default paths. |
+| `235cdbc` | Phase 8 | Frontend foundation: brand, navigation shell, wallet connection and Coston2 network handling, and the shared UI primitives (buttons, fields, dialog, toast, transaction feedback). |
+| `7e15f64` | Phase 9 | Product screens: the vault, guided commitment creation, the commitment detail and evidence view, and FDC progress states, all reading real indexed data with no hard-coded commitments. |
+
+## Work in progress, not yet committed
+
+At the time this document was written, the working tree contains an uncommitted visual-alignment and real-data pass on top of Phase 9: dashboard sidebar layout, updated color tokens, new `/deployment`, `/how-it-works`, `/terms`, and `/privacy` routes, and a hardening of `GET /api/commitments`/`GET /api/commitments/:id` so upstream failures return `502` rather than a misleading empty result or a bare `500`. This is disclosed here because `git log` alone would not show it; it had not been committed as of this writing.
+
+## What has not happened yet
+
+- **Phase 10 (end-to-end proof)**: no real fulfilled or defaulted commitment has been recorded against the deployed Coston2 contract yet. See the README's Demo evidence section.
+- **Public deployment**: the frontend and API are not hosted anywhere public yet; see `docs/DEPLOYMENT.md`.
+- **External audit**: none has been performed on the contract or the API.
+
+No development history beyond what is listed above is claimed. Where a plan existed but was not carried out (a cure period distinct from the deadline, rate limiting on proof endpoints, mainnet deployment), it is listed as a limitation or a roadmap item, not as completed work.

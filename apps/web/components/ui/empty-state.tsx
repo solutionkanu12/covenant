@@ -14,7 +14,7 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-surface px-6 py-16 text-center">
+    <div className="flex flex-col items-center gap-3 rounded-lg border border-line bg-surface px-4 py-12 text-center sm:px-6 sm:py-16">
       <span
         aria-hidden="true"
         className={cx(
@@ -23,7 +23,9 @@ export function EmptyState({
         )}
       />
       <p className="text-lg font-semibold text-ink">{title}</p>
-      <p className="max-w-sm text-sm leading-6 text-ink-soft">{description}</p>
+      <p className="w-full max-w-full text-sm leading-6 text-pretty break-words text-ink-soft">
+        {description}
+      </p>
       {action ? <div className="mt-2">{action}</div> : null}
     </div>
   );

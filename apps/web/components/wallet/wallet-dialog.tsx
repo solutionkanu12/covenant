@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useConnect, type Connector } from "wagmi";
 
@@ -37,6 +38,7 @@ export function WalletDialog({
 }) {
   const { connectors, connect, isPending, reset } = useConnect();
   const { push } = useToast();
+  const router = useRouter();
   const [pendingUid, setPendingUid] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -72,6 +74,7 @@ export function WalletDialog({
                     onSuccess: () => {
                       push({ tone: "success", title: "Wallet connected" });
                       onClose();
+                      router.push("/vault");
                     },
                     onError: (error) => {
                       setErrorMessage(friendlyConnectError(error));
@@ -80,7 +83,7 @@ export function WalletDialog({
                   },
                 );
               }}
-              className="flex h-12 items-center justify-between rounded-xl border border-line-strong bg-surface px-4 text-sm font-semibold text-ink transition-colors duration-150 ease-out-soft hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex h-12 items-center justify-between rounded-xl border border-line-strong bg-surface px-4 text-sm font-semibold text-ink transition-[transform,color,background-color] duration-[160ms] ease-out-soft hover:scale-[0.96] hover:bg-surface-sunken motion-reduce:hover:scale-100 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100"
             >
               {connectorLabel(connector)}
               {pending ? <Spinner size="sm" /> : null}

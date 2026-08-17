@@ -223,7 +223,7 @@ export function CreateForm() {
         />
       </Field>
 
-      <div className="grid gap-6 sm:grid-cols-2">
+      <div className="grid min-w-0 gap-6 sm:grid-cols-2">
         <Field
           label="XRP amount to pay"
           htmlFor="xrpAmount"

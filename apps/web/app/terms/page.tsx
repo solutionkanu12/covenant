@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Terms",
+  title: "Terms of Service",
   description: "Terms of use for the Covenant testnet prototype.",
 };
 
@@ -34,7 +34,9 @@ export default function TermsPage() {
       <p className="text-xs font-semibold tracking-widest text-muted uppercase">
         Legal
       </p>
-      <h1 className="mt-3 text-4xl font-bold tracking-tight text-ink">Terms</h1>
+      <h1 className="mt-3 text-4xl font-bold tracking-tight text-ink">
+        Terms of Service
+      </h1>
       <p className="mt-4 text-lg leading-8 text-ink-soft">
         Short and plain, because this is a testnet prototype.
       </p>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Privacy",
+  title: "Privacy Policy",
   description: "Privacy notes for the Covenant testnet prototype.",
 };
 
@@ -31,7 +31,7 @@ export default function PrivacyPage() {
         Legal
       </p>
       <h1 className="mt-3 text-4xl font-bold tracking-tight text-ink">
-        Privacy
+        Privacy Policy
       </h1>
       <p className="mt-4 text-lg leading-8 text-ink-soft">
         Covenant is wallet native. There is very little to say, and that is

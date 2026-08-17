@@ -22,9 +22,9 @@ import { formatTokenAmount, truncateHex } from "@/lib/format";
 
 function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1 border-b border-line py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+    <div className="flex min-w-0 flex-col gap-1 border-b border-line py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
       <dt className="text-sm font-semibold text-ink-soft">{label}</dt>
-      <dd className="text-sm text-ink">{value}</dd>
+      <dd className="min-w-0 text-sm break-words text-ink">{value}</dd>
     </div>
   );
 }

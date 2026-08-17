@@ -23,10 +23,10 @@ export default function NewCommitmentPage() {
       <p className="text-xs font-semibold tracking-widest text-muted uppercase">
         New commitment
       </p>
-      <h1 className="mt-3 text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+      <h1 className="mt-3 text-3xl font-bold tracking-tight break-words text-ink sm:text-4xl">
         Define the commitment
       </h1>
-      <p className="mt-4 text-lg leading-8 text-ink-soft">
+      <p className="mt-4 text-lg leading-8 text-pretty text-ink-soft">
         Lock an FXRP bond behind a future XRP payment. The bond returns to you when Flare
         verifies the payment, or moves to the recipient if the deadline passes unpaid.
       </p>

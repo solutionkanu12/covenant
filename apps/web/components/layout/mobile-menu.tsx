@@ -16,7 +16,7 @@ export function MobileMenu({ links }: { links: NavLink[] }) {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Open menu"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-ink transition-colors duration-150 ease-out-soft hover:bg-surface-sunken"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-ink transition-[transform,color,background-color] duration-[160ms] ease-out-soft hover:scale-[0.96] hover:bg-raised motion-reduce:hover:scale-100"
       >
         <svg
           viewBox="0 0 20 20"
@@ -40,7 +40,7 @@ export function MobileMenu({ links }: { links: NavLink[] }) {
                 <Link
                   href={link.href}
                   onClick={() => setOpen(false)}
-                  className="block rounded-xl px-4 py-3 text-base font-semibold text-ink transition-colors duration-150 ease-out-soft hover:bg-surface-sunken"
+                  className="block rounded-xl px-4 py-3 text-base font-semibold text-ink transition-[transform,color,background-color] duration-[160ms] ease-out-soft hover:scale-[0.96] hover:bg-raised motion-reduce:hover:scale-100"
                 >
                   {link.label}
                 </Link>

@@ -10,29 +10,44 @@ import { truncateHex } from "@/lib/format";
 import { AccountDialog } from "./account-dialog";
 import { WalletDialog } from "./wallet-dialog";
 
-export function ConnectButton({ size = "sm" }: { size?: ButtonSize }) {
+export function ConnectButton({
+  size = "sm",
+  className,
+}: {
+  size?: ButtonSize;
+  className?: string;
+}) {
   const [mounted, setMounted] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const { address, isConnected, isReconnecting, chainId } = useAccount();
   const { mutate: switchChain, isPending: isSwitching } = useSwitchChain();
   const { push } = useToast();
-
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  const primary = "primary";
+  const secondary = "secondary";
+
   if (!mounted) {
     return (
-      <Button variant="primary" size={size} disabled>
-        Connect wallet
+      <Button variant={primary} size={size} disabled className={className}>
+        <span className="sm:hidden">Connect</span>
+        <span className="hidden sm:inline">Connect wallet</span>
       </Button>
     );
   }
 
   if (isReconnecting) {
     return (
-      <Button variant="secondary" size={size} loading loadingLabel="Restoring">
+      <Button
+        variant={secondary}
+        size={size}
+        loading
+        loadingLabel="Restoring"
+        className={className}
+      >
         Restoring
       </Button>
     );
@@ -42,11 +57,13 @@ export function ConnectButton({ size = "sm" }: { size?: ButtonSize }) {
     return (
       <>
         <Button
-          variant="primary"
+          variant={primary}
           size={size}
           onClick={() => setWalletOpen(true)}
+          className={className}
         >
-          Connect wallet
+          <span className="sm:hidden">Connect</span>
+          <span className="hidden sm:inline">Connect wallet</span>
         </Button>
         <WalletDialog open={walletOpen} onClose={() => setWalletOpen(false)} />
       </>
@@ -56,10 +73,11 @@ export function ConnectButton({ size = "sm" }: { size?: ButtonSize }) {
   if (chainId !== COSTON2_CHAIN_ID) {
     return (
       <Button
-        variant="secondary"
+        variant={secondary}
         size={size}
         loading={isSwitching}
         loadingLabel="Switching"
+        className={className}
         onClick={() =>
           switchChain(
             { chainId: COSTON2_CHAIN_ID },
@@ -88,10 +106,11 @@ export function ConnectButton({ size = "sm" }: { size?: ButtonSize }) {
   return (
     <>
       <Button
-        variant="secondary"
+        variant={secondary}
         size={size}
         onClick={() => setAccountOpen(true)}
         aria-label={`Wallet ${address}, connected to ${coston2.name}`}
+        className={className}
       >
         <span aria-hidden="true" className="h-2 w-2 rounded-full bg-success" />
         <span className="font-mono">{truncateHex(address)}</span>

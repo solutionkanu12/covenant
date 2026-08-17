@@ -8,7 +8,7 @@ import {
 import { cx } from "@/lib/cx";
 
 const controlClasses =
-  "w-full rounded-xl border border-line-strong bg-surface px-4 text-sm text-ink placeholder:text-muted transition-colors duration-150 ease-out-soft hover:border-line-strong focus:border-accent disabled:cursor-not-allowed disabled:opacity-60";
+  "w-full min-w-0 max-w-full rounded-xl border border-line-strong bg-raised px-4 text-sm text-ink placeholder:text-muted transition-colors duration-[160ms] ease-out-soft hover:border-line-strong focus:border-accent disabled:cursor-not-allowed disabled:opacity-60";
 
 type FieldProps = {
   label: string;

@@ -127,7 +127,7 @@ export function PaymentPanel({ commitment }: { commitment: CommitmentRecord }) {
                 <p>Scan with Xaman, or open it directly on this device.</p>
                 <a
                   href={requestQuery.data.xaman.deeplink}
-                  className="inline-flex w-fit items-center rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-paper transition-colors duration-150 ease-out-soft hover:bg-ink-raised"
+                  className="inline-flex w-fit items-center rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-ink transition-[transform,color,background-color] duration-[160ms] ease-out-soft hover:scale-[0.96] hover:bg-accent-strong motion-reduce:hover:scale-100"
                 >
                   Open in Xaman
                 </a>

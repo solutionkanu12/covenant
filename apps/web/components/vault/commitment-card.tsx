@@ -28,7 +28,7 @@ export function CommitmentCard({
   return (
     <Link
       href={`/commitments/${commitment.commitment_id}`}
-      className="flex flex-col gap-3 p-5 transition-colors duration-150 ease-out-soft hover:bg-surface-sunken sm:flex-row sm:items-center sm:justify-between"
+      className="flex flex-col gap-3 p-5 transition-colors duration-150 ease-out-soft hover:bg-raised sm:flex-row sm:items-center sm:justify-between"
     >
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2.5">

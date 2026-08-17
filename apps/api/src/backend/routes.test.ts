@@ -176,6 +176,107 @@ test("backend routes expose public data and protect admin and sync operations", 
   await app.close();
 });
 
+test("commitments list filters: empty vault returns 200 with [], failures return 502 not 500", async () => {
+  const wallet = "0x841F714A57Ba1B1A77ef8b3732aCf825D593f017";
+  const seenFilters: string[] = [];
+  let listImpl: (filter?: string) => Promise<CommitmentRecord[]> = async () => [];
+  let detailImpl: () => Promise<CommitmentRecord | null> = async () => null;
+  const repository = {
+    health: async () => [],
+    listCommitments: async (filter?: string) => {
+      seenFilters.push(filter ?? "");
+      return listImpl(filter);
+    },
+    commitment: async () => detailImpl(),
+    settlementEvents: async () => [],
+    isAdmin: async () => false,
+  } as unknown as BackendRepository;
+  const indexer = { sync: async () => ({ fromBlock: 0n, toBlock: 0n, eventsProcessed: 0, caughtUp: true }) } as CovenantIndexer;
+  const eventSource = {
+    blockNumber: async () => 0n,
+    events: async () => [],
+  } satisfies CovenantEventSource;
+  const client = authClient();
+  const app = buildApp({
+    supabase: client,
+    admin: client,
+    backend: {
+      repository,
+      indexer,
+      eventSource,
+      internalApiSecret: "secret",
+      xrplTransactionSource: noopXrplSource(),
+      xrplLedgerSource: stubLedgerSource(),
+      fdcDeps: noopFdcDeps(),
+    },
+  });
+
+  // A wallet with no commitments is a valid empty result, never an error.
+  const empty = await app.inject({ url: `/api/commitments?wallet=${wallet}&limit=100` });
+  assert.equal(empty.statusCode, 200);
+  assert.deepEqual(empty.json(), []);
+  assert.match(
+    seenFilters[0],
+    new RegExp(
+      `or=\\(payer_flare_address\\.ilike\\.${wallet},recipient_flare_address\\.ilike\\.${wallet}\\)`,
+    ),
+  );
+  assert.match(seenFilters[0], /limit=100/);
+
+  const filtered = await app.inject({
+    url: `/api/commitments?wallet=${wallet}&status=fulfilled`,
+  });
+  assert.equal(filtered.statusCode, 200);
+  assert.deepEqual(filtered.json(), []);
+  assert.match(seenFilters[1], /status=eq\.fulfilled/);
+
+  // Bad input is a 400, not a 500.
+  for (const url of [
+    "/api/commitments?wallet=0xnothex",
+    "/api/commitments?status=bogus",
+    "/api/commitments?limit=abc",
+  ]) {
+    const res = await app.inject({ url });
+    assert.equal(res.statusCode, 400, url);
+  }
+
+  // An upstream (Supabase/PostgREST) failure is classified 502 with the cause
+  // logged server-side; the route never leaks a bare 500, and never pretends
+  // the vault is empty.
+  listImpl = async () => {
+    throw new Error("column commitments.minimal_ledger does not exist");
+  };
+  const upstream = await app.inject({ url: `/api/commitments?wallet=${wallet}` });
+  assert.equal(upstream.statusCode, 502);
+  assert.deepEqual(upstream.json(), {
+    error: "Commitments lookup failed upstream",
+  });
+
+  // A non-array payload is the same class of failure, not a successful [].
+  listImpl = async () => undefined as unknown as CommitmentRecord[];
+  const malformed = await app.inject({
+    url: `/api/commitments?wallet=${wallet}`,
+  });
+  assert.equal(malformed.statusCode, 502);
+  assert.deepEqual(malformed.json(), {
+    error: "Commitments lookup failed upstream",
+  });
+
+  // Detail route: 404 for a missing commitment, 502 on upstream failure.
+  const missing = await app.inject({ url: "/api/commitments/7" });
+  assert.equal(missing.statusCode, 404);
+  detailImpl = async () => {
+    throw new Error("schema cache reload in progress");
+  };
+  const detailUpstream = await app.inject({ url: "/api/commitments/7" });
+  assert.equal(detailUpstream.statusCode, 502);
+  assert.deepEqual(detailUpstream.json(), {
+    error: "Commitment lookup failed upstream",
+  });
+
+  await app.close();
+});
+
 function buildPaymentTestApp(overrides: {
   commitment?: CommitmentRecord | null;
   fetchTransaction?: XrplTransactionSource["fetchTransaction"];

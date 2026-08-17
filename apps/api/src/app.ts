@@ -278,7 +278,26 @@ export function buildApp(options: AppOptions = {}) {
     if (!Number.isInteger(limit))
       return reply.code(400).send({ error: "Invalid result limit" });
     filters.push("order=created_at.desc", `limit=${limit}`);
-    return backend.repository.listCommitments(filters.join("&"));
+    try {
+      const rows = await backend.repository.listCommitments(filters.join("&"));
+      // An empty vault is a valid result: 200 with []. A non-array payload is
+      // an upstream contract break, not an empty vault.
+      if (!Array.isArray(rows)) {
+        app.log.error(
+          { payloadType: typeof rows },
+          "Commitments lookup returned a non-array payload",
+        );
+        return reply
+          .code(502)
+          .send({ error: "Commitments lookup failed upstream" });
+      }
+      return rows;
+    } catch (error) {
+      app.log.error({ err: error }, "Commitments lookup failed");
+      return reply
+        .code(502)
+        .send({ error: "Commitments lookup failed upstream" });
+    }
   });
 
   app.get<{ Params: { id: string } }>(
@@ -288,16 +307,23 @@ export function buildApp(options: AppOptions = {}) {
         return reply.code(503).send({ error: "Backend services unavailable" });
       if (!/^\d+$/.test(request.params.id))
         return reply.code(400).send({ error: "Invalid commitment id" });
-      const row = await backend.repository.commitment(
-        covenantCoston2Deployment.chainId,
-        covenantCoston2Deployment.covenantEscrow,
-        request.params.id,
-      );
-      if (!row) return reply.code(404).send({ error: "Commitment not found" });
-      return {
-        commitment: row,
-        evidence: await backend.repository.settlementEvents(row.id),
-      };
+      try {
+        const row = await backend.repository.commitment(
+          covenantCoston2Deployment.chainId,
+          covenantCoston2Deployment.covenantEscrow,
+          request.params.id,
+        );
+        if (!row) return reply.code(404).send({ error: "Commitment not found" });
+        return {
+          commitment: row,
+          evidence: await backend.repository.settlementEvents(row.id),
+        };
+      } catch (error) {
+        app.log.error({ err: error }, "Commitment lookup failed");
+        return reply
+          .code(502)
+          .send({ error: "Commitment lookup failed upstream" });
+      }
     },
   );
 

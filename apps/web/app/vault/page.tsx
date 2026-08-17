@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
 
@@ -14,6 +14,8 @@ import { listCommitments } from "@/lib/api";
 import { COSTON2_CHAIN_ID, coston2 } from "@/lib/chains";
 import type { CommitmentStatus } from "@/lib/commitment-types";
 import { cx } from "@/lib/cx";
+import { FXRP_DECIMALS, FXRP_SYMBOL, XRP_DECIMALS } from "@/lib/erc20";
+import { formatTokenAmount } from "@/lib/format";
 
 const statusFilters: { label: string; value: CommitmentStatus | undefined }[] = [
   { label: "All", value: undefined },
@@ -49,18 +51,39 @@ export default function VaultPage() {
     enabled,
   });
 
+  const totals = useMemo(() => {
+    if (!query.data || query.data.length === 0) return null;
+    return {
+      count: query.data.length,
+      xrp: query.data.reduce(
+        (sum, row) => sum + BigInt(row.xrp_amount_drops),
+        0n,
+      ),
+      bond: query.data.reduce(
+        (sum, row) => sum + BigInt(row.fxrp_bond_amount),
+        0n,
+      ),
+    };
+  }, [query.data]);
+
   return (
-    <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6 sm:py-20">
-      <p className="text-xs font-semibold tracking-widest text-muted uppercase">
-        Vault
-      </p>
-      <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
-        <h1 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
-          Your commitments
-        </h1>
+    <section className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-14">
+      <div className="flex flex-col items-start gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold tracking-widest text-muted uppercase">
+            Vault
+          </p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight break-words text-ink sm:text-4xl">
+            Your commitments
+          </h1>
+        </div>
         <Link
           href="/commitments/new"
-          className={buttonClasses({ variant: "primary", size: "md" })}
+          className={buttonClasses({
+            variant: "primary",
+            size: "md",
+            className: "w-full sm:w-auto",
+          })}
         >
           New commitment
         </Link>
@@ -88,7 +111,40 @@ export default function VaultPage() {
         </div>
       ) : (
         <>
-          <div className="mt-8 flex flex-wrap gap-2" role="group" aria-label="Filter by status">
+          {totals ? (
+            <dl className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-line bg-surface px-4 py-4">
+                <dt className="text-xs font-semibold tracking-wide text-muted uppercase">
+                  Shown
+                </dt>
+                <dd className="mt-1 text-2xl font-semibold tracking-tight text-ink">
+                  {totals.count}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-line bg-surface px-4 py-4">
+                <dt className="text-xs font-semibold tracking-wide text-muted uppercase">
+                  XRP promised
+                </dt>
+                <dd className="mt-1 font-mono text-2xl font-semibold tracking-tight text-ink">
+                  {formatTokenAmount(totals.xrp, XRP_DECIMALS)}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-line bg-surface px-4 py-4">
+                <dt className="text-xs font-semibold tracking-wide text-muted uppercase">
+                  {FXRP_SYMBOL} bonded
+                </dt>
+                <dd className="mt-1 font-mono text-2xl font-semibold tracking-tight text-ink">
+                  {formatTokenAmount(totals.bond, FXRP_DECIMALS)}
+                </dd>
+              </div>
+            </dl>
+          ) : null}
+
+          <div
+            className="mt-8 flex flex-wrap gap-2"
+            role="group"
+            aria-label="Filter by status"
+          >
             {statusFilters.map((filter) => (
               <button
                 key={filter.label}
@@ -96,10 +152,10 @@ export default function VaultPage() {
                 onClick={() => setStatus(filter.value)}
                 aria-pressed={status === filter.value}
                 className={cx(
-                  "rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors duration-150 ease-out-soft",
+                  "rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-[transform,color,background-color,border-color] duration-[160ms] ease-out-soft hover:scale-[0.96] motion-reduce:hover:scale-100",
                   status === filter.value
-                    ? "border-ink bg-ink text-paper"
-                    : "border-line-strong bg-surface text-ink-soft hover:bg-surface-sunken",
+                    ? "border-accent bg-accent text-ink"
+                    : "border-line-strong bg-surface text-ink-soft hover:bg-raised",
                 )}
               >
                 {filter.label}
@@ -134,12 +190,12 @@ export default function VaultPage() {
                     href="/commitments/new"
                     className={buttonClasses({ variant: "primary", size: "md" })}
                   >
-                    Create a commitment
+                    New commitment
                   </Link>
                 }
               />
             ) : (
-              <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+              <div className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface">
                 {query.data.map((commitment) => (
                   <CommitmentCard
                     key={commitment.id}
