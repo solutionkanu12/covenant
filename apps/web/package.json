@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "build": "NEXT_DIST_DIR=.next next build",
+    "cf:build": "NEXT_DIST_DIR=.next opennextjs-cloudflare build",
+    "cf:deploy": "NEXT_DIST_DIR=.next opennextjs-cloudflare deploy",
     "dev": "NEXT_DIST_DIR=.next-dev next dev",
     "start": "NEXT_DIST_DIR=.next next start",
     "test": "node --import tsx --test lib/**/*.test.ts",
@@ -25,10 +27,12 @@
     "xrpl": "^5.0.0"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.20.2",
     "@types/node": "^24.3.0",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "tsx": "^4.23.12",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "wrangler": "^4.124.0"
   }
 }

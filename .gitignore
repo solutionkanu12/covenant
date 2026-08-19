@@ -16,6 +16,10 @@ supabase/.temp/
 .next-dev/
 out/
 
+# Cloudflare (OpenNext build output and local wrangler state)
+.open-next/
+.wrangler/
+
 # TypeScript and application builds
 dist/
 *.tsbuildinfo
