@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { advanceFdcJob, type FdcExecutorDeps, type JobRepository } from "./jobProcessor.js";
+import { restorePaymentProofData, type PaymentProofData } from "./coston2Fdc.js";
 import type { CommitmentRecord, FdcJobRecord } from "../backend/repository.js";
 
 const contractAddress = "0x841F714A57Ba1B1A77ef8b3732aCf825D593f017" as const;
@@ -278,6 +279,66 @@ test("proof_ready settles a payment job", async () => {
   assert.equal(calls.settleDefault, undefined);
 });
 
+test("a job resumed after a restart carries proof_json bigint fields as persisted decimal strings, which the executor restores to real bigints before settling", async () => {
+  const { repository } = fakeRepository();
+  let capturedData: unknown;
+  const { deps } = fakeDeps({
+    // Mirrors what the real Coston2 executor does: restore bigint fields at the settlement
+    // boundary, since jsonb round-trips bigints as decimal strings.
+    settlePaid: async (_contractAddress, _commitmentId, _merkleProof, data) => {
+      capturedData = restorePaymentProofData(data as PaymentProofData);
+      return "0xsettletxhash";
+    },
+  });
+  // Shape a proof_json exactly as it would come back from Supabase after a restart: every
+  // bigint field decoded from the ABI response was serialized to a decimal string on write.
+  const persistedAfterRestart = job({
+    status: "proof_ready",
+    proof_json: {
+      merkleProof: ["0xproofnode"],
+      data: {
+        attestationType: `0x${"11".repeat(32)}`,
+        sourceId: `0x${"22".repeat(32)}`,
+        votingRound: "900123",
+        lowestUsedTimestamp: "1700000000",
+        requestBody: {
+          transactionId: `0x${"33".repeat(32)}`,
+          inUtxo: "0",
+          utxo: "1",
+        },
+        responseBody: {
+          blockNumber: "19819259",
+          blockTimestamp: "1700000100",
+          sourceAddressHash: `0x${"44".repeat(32)}`,
+          sourceAddressesRoot: `0x${"00".repeat(32)}`,
+          receivingAddressHash: `0x${"55".repeat(32)}`,
+          intendedReceivingAddressHash: `0x${"55".repeat(32)}`,
+          spentAmount: "1000000",
+          intendedSpentAmount: "1000000",
+          receivedAmount: "999999",
+          intendedReceivedAmount: "1000000",
+          standardPaymentReference: `0x${"ab".repeat(32)}`,
+          oneToOne: true,
+          status: 0,
+        },
+      },
+    },
+  });
+  const result = await advanceFdcJob(
+    persistedAfterRestart,
+    commitment(),
+    contractAddress,
+    deps,
+    repository,
+  );
+  assert.equal(result.status, "settled");
+  const restored = capturedData as PaymentProofData;
+  assert.equal(restored.votingRound, 900123n);
+  assert.equal(typeof restored.votingRound, "bigint");
+  assert.equal(restored.requestBody.utxo, 1n);
+  assert.equal(restored.responseBody.spentAmount, 1_000_000n);
+});
+
 test("proof_ready settles a default (RPN) job via settleDefault", async () => {
   const { repository } = fakeRepository();
   const { deps, calls } = fakeDeps();
@@ -338,6 +399,42 @@ test("a settlement failure caused by an already-settled commitment is treated as
   );
   assert.equal(result.status, "settled");
   assert.equal(settlePaidCalls, 1);
+});
+
+test("a COMMITMENT_NOT_ACTIVE revert is treated as settled even when the commitments mirror in Supabase hasn't caught up yet (indexer lag)", async () => {
+  let commitmentByIdCalls = 0;
+  const { repository, updateCalls } = fakeRepository({
+    // The indexer hasn't processed the CommitmentSettled event yet, so the mirror still says
+    // active. The chain's own revert reason must be authoritative regardless, and checked first.
+    commitmentById: async () => {
+      commitmentByIdCalls += 1;
+      return commitment({ status: "active" });
+    },
+  });
+  let settlePaidCalls = 0;
+  const { deps } = fakeDeps({
+    settlePaid: async () => {
+      settlePaidCalls += 1;
+      throw new Error("COMMITMENT_NOT_ACTIVE");
+    },
+  });
+  const ready = job({
+    status: "proof_ready",
+    proof_json: { merkleProof: ["0xproofnode"], data: { decoded: true } },
+  });
+  const result = await advanceFdcJob(
+    ready,
+    commitment(),
+    contractAddress,
+    deps,
+    repository,
+  );
+  assert.equal(result.status, "settled");
+  assert.equal(settlePaidCalls, 1);
+  // Recovered without a Supabase round-trip and without touching attempt_count.
+  assert.equal(commitmentByIdCalls, 0);
+  assert.equal(updateCalls.length, 1);
+  assert.equal("attempt_count" in updateCalls[0]!, false);
 });
 
 test("an RPN job derives amount as committed drops minus one and the exact ledger/reference fields", async () => {

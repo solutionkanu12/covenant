@@ -9,13 +9,15 @@ import { Button, buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/spinner";
 import { ConnectButton } from "@/components/wallet/connect-button";
+import { useActualChainId } from "@/components/wallet/use-actual-chain-id";
 import { CommitmentCard } from "@/components/vault/commitment-card";
 import { listCommitments } from "@/lib/api";
-import { COSTON2_CHAIN_ID, coston2 } from "@/lib/chains";
+import { coston2 } from "@/lib/chains";
 import type { CommitmentStatus } from "@/lib/commitment-types";
 import { cx } from "@/lib/cx";
 import { FXRP_DECIMALS, FXRP_SYMBOL, XRP_DECIMALS } from "@/lib/erc20";
 import { formatTokenAmount } from "@/lib/format";
+import { isWrongNetwork } from "@/lib/wallet-status";
 
 const statusFilters: { label: string; value: CommitmentStatus | undefined }[] = [
   { label: "All", value: undefined },
@@ -37,11 +39,12 @@ function ListSkeleton() {
 export default function VaultPage() {
   const [mounted, setMounted] = useState(false);
   const [status, setStatus] = useState<CommitmentStatus | undefined>(undefined);
-  const { address, isConnected, isReconnecting, chainId } = useAccount();
+  const { address, isConnected, isReconnecting } = useAccount();
+  const chainId = useActualChainId();
 
   useEffect(() => setMounted(true), []);
 
-  const wrongNetwork = isConnected && chainId !== COSTON2_CHAIN_ID;
+  const wrongNetwork = isWrongNetwork(isConnected, chainId);
   const ready = mounted && !isReconnecting;
   const enabled = ready && isConnected && !wrongNetwork && Boolean(address);
 

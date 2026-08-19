@@ -282,6 +282,10 @@ function buildPaymentTestApp(overrides: {
   fetchTransaction?: XrplTransactionSource["fetchTransaction"];
   hasObservation?: boolean;
   fdcDeps?: Partial<FdcExecutorDeps>;
+  getOrCreateFdcJob?: (
+    commitmentId: string,
+    attestationType: string,
+  ) => Promise<FdcJobRecord>;
 } = {}) {
   const commitment =
     overrides.commitment === undefined ? row : overrides.commitment;
@@ -336,15 +340,17 @@ function buildPaymentTestApp(overrides: {
             payment_reference: paymentReference,
             observed_at: "2026-01-01T00:00:00.000Z",
           },
-    getOrCreateFdcJob: async (commitmentId: string, attestationType: string) => {
-      const key = `${commitmentId}:${attestationType}`;
-      const existing = jobsByKey.get(key);
-      if (existing) return existing;
-      const created = job(attestationType);
-      jobsByKey.set(key, created);
-      jobsById.set(created.id, created);
-      return created;
-    },
+    getOrCreateFdcJob:
+      overrides.getOrCreateFdcJob ??
+      (async (commitmentId: string, attestationType: string) => {
+        const key = `${commitmentId}:${attestationType}`;
+        const existing = jobsByKey.get(key);
+        if (existing) return existing;
+        const created = job(attestationType);
+        jobsByKey.set(key, created);
+        jobsById.set(created.id, created);
+        return created;
+      }),
     updateFdcJob: async (id: string, body: Record<string, unknown>) => {
       const existing = jobsById.get(id);
       const updated = { ...existing, ...body } as FdcJobRecord;
@@ -600,4 +606,34 @@ test("GET /api/fdc/jobs/:id returns 404 for an unknown job and 200 for a real on
   assert.equal(status.statusCode, 200);
   assert.equal(status.json().id, jobId);
   await app.close();
+});
+
+test("prove-payment and prove-default map upstream job failures to 502, not 500", async () => {
+  const past = new Date(Date.now() - 86_400_000).toISOString();
+  const { app: paymentApp } = buildPaymentTestApp({
+    getOrCreateFdcJob: async () => {
+      throw new Error("schema cache reload in progress");
+    },
+  });
+  const payment = await paymentApp.inject({
+    method: "POST",
+    url: "/api/commitments/7/prove-payment",
+  });
+  assert.equal(payment.statusCode, 502);
+  assert.deepEqual(payment.json(), { error: "Prove payment failed upstream" });
+  await paymentApp.close();
+
+  const { app: defaultApp } = buildPaymentTestApp({
+    commitment: { ...row, cure_ends_at: past },
+    getOrCreateFdcJob: async () => {
+      throw new Error("schema cache reload in progress");
+    },
+  });
+  const def = await defaultApp.inject({
+    method: "POST",
+    url: "/api/commitments/7/prove-default",
+  });
+  assert.equal(def.statusCode, 502);
+  assert.deepEqual(def.json(), { error: "Prove default failed upstream" });
+  await defaultApp.close();
 });

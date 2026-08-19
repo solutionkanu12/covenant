@@ -1,6 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Badge } from "@/components/ui/badge";
+import { getCommitment } from "@/lib/api";
 import type { CommitmentRecord } from "@/lib/commitment-types";
 import { commitmentStatusLabel, commitmentStatusTone } from "@/lib/commitment-status";
 import { FXRP_DECIMALS, FXRP_SYMBOL, XRP_DECIMALS } from "@/lib/erc20";
@@ -13,6 +17,14 @@ export function CommitmentCard({
   commitment: CommitmentRecord;
   viewerAddress?: string;
 }) {
+  const queryClient = useQueryClient();
+  const detailId = String(commitment.commitment_id);
+  const prefetchDetail = () => {
+    void queryClient.prefetchQuery({
+      queryKey: ["commitment", detailId],
+      queryFn: () => getCommitment(detailId),
+    });
+  };
   const isPayer =
     viewerAddress?.toLowerCase() === commitment.payer_flare_address.toLowerCase();
   const counterparty = isPayer
@@ -27,7 +39,10 @@ export function CommitmentCard({
 
   return (
     <Link
-      href={`/commitments/${commitment.commitment_id}`}
+      href={`/commitments/${detailId}`}
+      prefetch
+      onPointerEnter={prefetchDetail}
+      onFocus={prefetchDetail}
       className="flex flex-col gap-3 p-5 transition-colors duration-150 ease-out-soft hover:bg-raised sm:flex-row sm:items-center sm:justify-between"
     >
       <div className="min-w-0">

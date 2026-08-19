@@ -3,6 +3,20 @@ import type { SupabaseConfig } from "../config.js";
 type ApiError = { message?: string };
 export type AuthUser = { id: string; email?: string };
 
+/**
+ * PostgREST bodies may carry bigint values nested arbitrarily deep (e.g. FDC proof data decoded
+ * from ABI-encoded uint64/int256/uint256 fields). JSON.stringify throws on a raw bigint, so every
+ * write goes through this replacer to convert bigints to decimal strings in place while leaving
+ * the rest of the structure (numbers, booleans, null, nested objects/arrays) untouched.
+ */
+function bigintSafeReplacer(_key: string, value: unknown): unknown {
+  return typeof value === "bigint" ? value.toString() : value;
+}
+
+function stringifyBody(body: unknown): string {
+  return JSON.stringify(body, bigintSafeReplacer);
+}
+
 export class SupabaseHttpClient {
   constructor(
     private readonly config: SupabaseConfig,
@@ -66,7 +80,7 @@ export class SupabaseHttpClient {
           {
             method: "POST",
             headers: { Prefer: "return=representation" },
-            body: JSON.stringify(body),
+            body: stringifyBody(body),
           },
           token,
         ),
@@ -78,7 +92,7 @@ export class SupabaseHttpClient {
             headers: {
               Prefer: "resolution=merge-duplicates,return=representation",
             },
-            body: JSON.stringify(body),
+            body: stringifyBody(body),
           },
           token,
         ),
@@ -91,7 +105,7 @@ export class SupabaseHttpClient {
             headers: {
               Prefer: "resolution=ignore-duplicates,return=representation",
             },
-            body: JSON.stringify(body),
+            body: stringifyBody(body),
           },
           token,
         ),
@@ -101,7 +115,7 @@ export class SupabaseHttpClient {
           {
             method: "PATCH",
             headers: { Prefer: "return=representation" },
-            body: JSON.stringify(body),
+            body: stringifyBody(body),
           },
           token,
         ),

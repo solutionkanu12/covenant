@@ -1,28 +1,34 @@
-import Link from "next/link";
-
-import { buttonClasses } from "@/components/ui/button";
 import { ConnectButton } from "@/components/wallet/connect-button";
+import { ConnectRedirect } from "@/components/wallet/connect-redirect";
 import { Deployment } from "@/components/marketing/deployment";
 import { HowItWorks } from "@/components/marketing/how-it-works";
 
 export default function Home() {
   return (
     <>
+      <ConnectRedirect />
       <section className="relative h-svh min-h-svh overflow-hidden">
         {/* Background is painted, not in document flow. */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-cover bg-center"
+          className="pointer-events-none absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: "url('/vault-hero.jpg')" }}
         />
-        <div aria-hidden="true" className="absolute inset-0 bg-black/62" />
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-[#ff5a45]/12"
+          className="pointer-events-none absolute inset-0 backdrop-blur-[6px]"
         />
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/35"
+          className="pointer-events-none absolute inset-0 bg-black/62"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[#ff5a45]/12"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/35"
         />
         <div className="relative z-10 flex h-full items-center justify-center px-4 sm:px-6">
           <div className="mx-auto w-full max-w-3xl py-24 text-center sm:py-28">
@@ -36,16 +42,6 @@ export default function Home() {
             </p>
             <div className="mx-auto mt-8 flex w-full max-w-sm flex-col items-stretch gap-3 sm:mt-9 sm:max-w-none sm:flex-row sm:items-center sm:justify-center">
               <ConnectButton size="md" className="w-full sm:w-auto" />
-              <Link
-                href="/vault"
-                className={buttonClasses({
-                  variant: "ghostOnDark",
-                  size: "md",
-                  className: "w-full sm:w-auto",
-                })}
-              >
-                Open the vault
-              </Link>
             </div>
           </div>
         </div>

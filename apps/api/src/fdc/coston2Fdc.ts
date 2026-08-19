@@ -6,6 +6,8 @@ import {
   isHex,
   decodeAbiParameters,
   decodeEventLog,
+  BaseError,
+  ContractFunctionRevertedError,
   type Address,
   type Hex,
   type PublicClient,
@@ -13,6 +15,43 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { flareContractRegistry, fdcDataAvailabilityUrl } from "./constants.js";
+
+// CovenantEscrow's custom errors (packages/contracts/src/CovenantEscrow.sol). settlePaid and
+// settleDefault are called with only their own function ABI, so viem cannot decode a revert into
+// its custom error name unless these are included too — without them, every revert reason looks
+// like an opaque, undecodable selector, making "already settled" indistinguishable from a real
+// failure.
+const covenantEscrowErrorsAbi = [
+  { type: "error", name: "ZeroAddress", inputs: [] },
+  { type: "error", name: "ZeroAmount", inputs: [] },
+  { type: "error", name: "PaymentReferenceCollision", inputs: [] },
+  { type: "error", name: "InvalidLedgerRange", inputs: [] },
+  { type: "error", name: "DeadlineNotFuture", inputs: [] },
+  { type: "error", name: "CommitmentNotActive", inputs: [] },
+  { type: "error", name: "InvalidProof", inputs: [] },
+  { type: "error", name: "ProofFieldMismatch", inputs: [] },
+  { type: "error", name: "DefaultTooEarly", inputs: [] },
+  { type: "error", name: "UnsupportedSource", inputs: [] },
+  { type: "error", name: "AddressHasNoCode", inputs: [] },
+  { type: "error", name: "InvalidDeadlineBoundary", inputs: [] },
+  { type: "error", name: "UnexpectedTokenBalanceDelta", inputs: [] },
+] as const;
+
+/**
+ * A revert of CommitmentNotActive from settlePaid/settleDefault can only mean the commitment left
+ * "active" already (it's the first check in both functions, before any proof validation) — i.e.
+ * this exact settlement already landed from an earlier attempt. That's a stronger, immediate
+ * signal than re-checking the (possibly indexer-lagged) commitments mirror in Supabase, so callers
+ * can treat it as authoritative confirmation of an already-settled commitment.
+ */
+export function commitmentNotActiveRevert(error: unknown): boolean {
+  if (!(error instanceof BaseError)) return false;
+  const reverted = error.walk((e) => e instanceof ContractFunctionRevertedError);
+  return (
+    reverted instanceof ContractFunctionRevertedError &&
+    reverted.data?.errorName === "CommitmentNotActive"
+  );
+}
 
 const registryAbi = [
   {
@@ -177,6 +216,58 @@ export type RpnProofData = AbiParameterToPrimitiveType<
 
 export type DaProof = { proof: Hex[]; responseHex: Hex };
 
+/**
+ * proof_json is persisted as jsonb: any bigint field decoded from the ABI response (uint64,
+ * uint256, int256) round-trips through the DB as a decimal string, since JSON has no bigint type.
+ * BigInt(x) is idempotent over an already-bigint input, so these restorers are safe to call on
+ * freshly decoded data (real bigints) and on data reloaded after a restart (decimal strings)
+ * alike — they always hand the FDC processor the bigint types viem's ABI encoder requires.
+ */
+export function restorePaymentProofData(data: PaymentProofData): PaymentProofData {
+  return {
+    ...data,
+    votingRound: BigInt(data.votingRound),
+    lowestUsedTimestamp: BigInt(data.lowestUsedTimestamp),
+    requestBody: {
+      ...data.requestBody,
+      inUtxo: BigInt(data.requestBody.inUtxo),
+      utxo: BigInt(data.requestBody.utxo),
+    },
+    responseBody: {
+      ...data.responseBody,
+      blockNumber: BigInt(data.responseBody.blockNumber),
+      blockTimestamp: BigInt(data.responseBody.blockTimestamp),
+      spentAmount: BigInt(data.responseBody.spentAmount),
+      intendedSpentAmount: BigInt(data.responseBody.intendedSpentAmount),
+      receivedAmount: BigInt(data.responseBody.receivedAmount),
+      intendedReceivedAmount: BigInt(data.responseBody.intendedReceivedAmount),
+    },
+  };
+}
+
+export function restoreRpnProofData(data: RpnProofData): RpnProofData {
+  return {
+    ...data,
+    votingRound: BigInt(data.votingRound),
+    lowestUsedTimestamp: BigInt(data.lowestUsedTimestamp),
+    requestBody: {
+      ...data.requestBody,
+      minimalBlockNumber: BigInt(data.requestBody.minimalBlockNumber),
+      deadlineBlockNumber: BigInt(data.requestBody.deadlineBlockNumber),
+      deadlineTimestamp: BigInt(data.requestBody.deadlineTimestamp),
+      amount: BigInt(data.requestBody.amount),
+    },
+    responseBody: {
+      ...data.responseBody,
+      minimalBlockTimestamp: BigInt(data.responseBody.minimalBlockTimestamp),
+      firstOverflowBlockNumber: BigInt(data.responseBody.firstOverflowBlockNumber),
+      firstOverflowBlockTimestamp: BigInt(
+        data.responseBody.firstOverflowBlockTimestamp,
+      ),
+    },
+  };
+}
+
 function parseDaProof(value: unknown): DaProof {
   if (
     typeof value !== "object" ||
@@ -333,6 +424,7 @@ export function createCoston2FdcClient(
       data: PaymentProofData,
     ) {
       if (!wallet || !account) throw new Error("EXECUTOR_KEY_MISSING");
+      const restoredData = restorePaymentProofData(data);
       const abi = [
         {
           name: "settlePaid",
@@ -351,15 +443,23 @@ export function createCoston2FdcClient(
           ],
           outputs: [],
         },
+        ...covenantEscrowErrorsAbi,
       ] as const;
-      const hash = await wallet.writeContract({
-        address: contractAddress,
-        abi,
-        functionName: "settlePaid",
-        args: [commitmentId, { merkleProof, data }],
-        account,
-        chain: undefined,
-      });
+      let hash: Hex;
+      try {
+        hash = await wallet.writeContract({
+          address: contractAddress,
+          abi,
+          functionName: "settlePaid",
+          args: [commitmentId, { merkleProof, data: restoredData }],
+          account,
+          chain: undefined,
+        });
+      } catch (error) {
+        if (commitmentNotActiveRevert(error))
+          throw new Error("COMMITMENT_NOT_ACTIVE");
+        throw error;
+      }
       const receipt = await client.waitForTransactionReceipt({ hash });
       if (receipt.status !== "success")
         throw new Error("settlePaid transaction failed");
@@ -374,6 +474,7 @@ export function createCoston2FdcClient(
       data: RpnProofData,
     ) {
       if (!wallet || !account) throw new Error("EXECUTOR_KEY_MISSING");
+      const restoredData = restoreRpnProofData(data);
       const abi = [
         {
           name: "settleDefault",
@@ -392,15 +493,23 @@ export function createCoston2FdcClient(
           ],
           outputs: [],
         },
+        ...covenantEscrowErrorsAbi,
       ] as const;
-      const hash = await wallet.writeContract({
-        address: contractAddress,
-        abi,
-        functionName: "settleDefault",
-        args: [commitmentId, { merkleProof, data }],
-        account,
-        chain: undefined,
-      });
+      let hash: Hex;
+      try {
+        hash = await wallet.writeContract({
+          address: contractAddress,
+          abi,
+          functionName: "settleDefault",
+          args: [commitmentId, { merkleProof, data: restoredData }],
+          account,
+          chain: undefined,
+        });
+      } catch (error) {
+        if (commitmentNotActiveRevert(error))
+          throw new Error("COMMITMENT_NOT_ACTIVE");
+        throw error;
+      }
       const receipt = await client.waitForTransactionReceipt({ hash });
       if (receipt.status !== "success")
         throw new Error("settleDefault transaction failed");

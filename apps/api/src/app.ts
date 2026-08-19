@@ -334,6 +334,7 @@ export function buildApp(options: AppOptions = {}) {
         return reply.code(503).send({ error: "Backend services unavailable" });
       if (!/^\d+$/.test(request.params.id))
         return reply.code(400).send({ error: "Invalid commitment id" });
+      try {
       const commitment = await backend.repository.commitment(
         covenantCoston2Deployment.chainId,
         covenantCoston2Deployment.covenantEscrow,
@@ -383,6 +384,12 @@ export function buildApp(options: AppOptions = {}) {
         transactionJson: JSON.stringify(payload, null, 2),
         xaman,
       };
+      } catch (error) {
+        app.log.error({ err: error }, "Payment request failed");
+        return reply
+          .code(502)
+          .send({ error: "Payment request failed upstream" });
+      }
     },
   );
 
@@ -401,6 +408,7 @@ export function buildApp(options: AppOptions = {}) {
         return reply
           .code(400)
           .send({ error: "A valid XRPL transaction hash is required" });
+      try {
       const commitment = await backend.repository.commitment(
         covenantCoston2Deployment.chainId,
         covenantCoston2Deployment.covenantEscrow,
@@ -443,6 +451,12 @@ export function buildApp(options: AppOptions = {}) {
         destination: result.destination,
         note: "Informational only. Settlement requires a verified FDC proof.",
       };
+      } catch (error) {
+        app.log.error({ err: error }, "Payment observation failed");
+        return reply
+          .code(502)
+          .send({ error: "Payment observation failed upstream" });
+      }
     },
   );
 
@@ -453,6 +467,7 @@ export function buildApp(options: AppOptions = {}) {
         return reply.code(503).send({ error: "Backend services unavailable" });
       if (!/^\d+$/.test(request.params.id))
         return reply.code(400).send({ error: "Invalid commitment id" });
+      try {
       const commitment = await backend.repository.commitment(
         covenantCoston2Deployment.chainId,
         covenantCoston2Deployment.covenantEscrow,
@@ -482,6 +497,12 @@ export function buildApp(options: AppOptions = {}) {
         backend.repository,
       );
       return reply.code(202).send(advanced);
+      } catch (error) {
+        app.log.error({ err: error }, "Prove payment failed");
+        return reply
+          .code(502)
+          .send({ error: "Prove payment failed upstream" });
+      }
     },
   );
 
@@ -492,6 +513,7 @@ export function buildApp(options: AppOptions = {}) {
         return reply.code(503).send({ error: "Backend services unavailable" });
       if (!/^\d+$/.test(request.params.id))
         return reply.code(400).send({ error: "Invalid commitment id" });
+      try {
       const commitment = await backend.repository.commitment(
         covenantCoston2Deployment.chainId,
         covenantCoston2Deployment.covenantEscrow,
@@ -517,6 +539,12 @@ export function buildApp(options: AppOptions = {}) {
         backend.repository,
       );
       return reply.code(202).send(advanced);
+      } catch (error) {
+        app.log.error({ err: error }, "Prove default failed");
+        return reply
+          .code(502)
+          .send({ error: "Prove default failed upstream" });
+      }
     },
   );
 
@@ -527,9 +555,14 @@ export function buildApp(options: AppOptions = {}) {
         return reply.code(503).send({ error: "Backend services unavailable" });
       if (!/^[0-9a-f-]{36}$/i.test(request.params.id))
         return reply.code(400).send({ error: "Invalid job id" });
-      const job = await backend.repository.fdcJobById(request.params.id);
-      if (!job) return reply.code(404).send({ error: "Job not found" });
-      return job;
+      try {
+        const job = await backend.repository.fdcJobById(request.params.id);
+        if (!job) return reply.code(404).send({ error: "Job not found" });
+        return job;
+      } catch (error) {
+        app.log.error({ err: error }, "FDC job lookup failed");
+        return reply.code(502).send({ error: "FDC job lookup failed upstream" });
+      }
     },
   );
 

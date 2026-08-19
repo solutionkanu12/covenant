@@ -8,8 +8,17 @@ const apiOrigin = (process.env.COVENANT_API_URL ?? "http://localhost:3001").repl
   "",
 );
 
+// next build and next dev must never share a webpack output dir. Reusing
+// .next produces "Cannot read properties of undefined (reading 'call')" in
+// .next/static/chunks/webpack.js. Scripts set NEXT_DIST_DIR; NODE_ENV is
+// the fallback so a raw `next dev` / `next build` stays isolated too.
+const distDir =
+  process.env.NEXT_DIST_DIR ??
+  (process.env.NODE_ENV === "development" ? ".next-dev" : ".next");
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  distDir,
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${apiOrigin}/api/:path*` }];
   },

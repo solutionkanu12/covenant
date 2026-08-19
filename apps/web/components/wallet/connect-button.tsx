@@ -7,7 +7,9 @@ import { Button, type ButtonSize } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { COSTON2_CHAIN_ID, coston2 } from "@/lib/chains";
 import { truncateHex } from "@/lib/format";
+import { isWrongNetwork } from "@/lib/wallet-status";
 import { AccountDialog } from "./account-dialog";
+import { useActualChainId } from "./use-actual-chain-id";
 import { WalletDialog } from "./wallet-dialog";
 
 export function ConnectButton({
@@ -20,7 +22,8 @@ export function ConnectButton({
   const [mounted, setMounted] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const { address, isConnected, isReconnecting, chainId } = useAccount();
+  const { address, isConnected, isReconnecting } = useAccount();
+  const chainId = useActualChainId();
   const { mutate: switchChain, isPending: isSwitching } = useSwitchChain();
   const { push } = useToast();
   useEffect(() => {
@@ -70,7 +73,7 @@ export function ConnectButton({
     );
   }
 
-  if (chainId !== COSTON2_CHAIN_ID) {
+  if (isWrongNetwork(isConnected, chainId)) {
     return (
       <Button
         variant={secondary}

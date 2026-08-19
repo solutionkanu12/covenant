@@ -5,7 +5,6 @@ import { LogoMark } from "@/components/brand/logo";
 const productLinks = [
   { href: "/#how-it-works", label: "How it works" },
   { href: "/#deployment", label: "Deployment" },
-  { href: "/vault", label: "Vault" },
 ];
 
 const legalLinks = [

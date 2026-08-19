@@ -11,8 +11,9 @@ node_modules/
 supabase/.branches/
 supabase/.temp/
 
-# Next.js
+# Next.js (dev and production outputs are isolated)
 .next/
+.next-dev/
 out/
 
 # TypeScript and application builds

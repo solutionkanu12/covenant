@@ -210,6 +210,17 @@ export async function advanceFdcJob(
           // The contract already settled (this job's own earlier attempt landed but crashed
           // before persisting, another instance settled it, or a manual settlement occurred).
           // The commitment leaving "active" is authoritative: never re-submit, just record it.
+          //
+          // A CommitmentNotActive revert (thrown by the contract's first check, before any proof
+          // validation) is that authoritative signal straight from the chain, and doesn't depend
+          // on the commitments mirror in Supabase having caught up with the indexer yet.
+          if (error instanceof Error && error.message === "COMMITMENT_NOT_ACTIVE")
+            return persist(repository, job, {
+              status: "settled",
+              next_step: null,
+              error_code: null,
+              error_message: null,
+            });
           const fresh = await repository.commitmentById(commitment.id);
           if (fresh && fresh.status !== "active")
             return persist(repository, job, {

@@ -6,7 +6,6 @@ import { cx } from "@/lib/cx";
 import { MobileMenu, type NavLink } from "./mobile-menu";
 
 export const publicNavLinks: NavLink[] = [
-  { href: "/vault", label: "Vault" },
   { href: "/#how-it-works", label: "How it works" },
   { href: "/#deployment", label: "Deployment" },
 ];

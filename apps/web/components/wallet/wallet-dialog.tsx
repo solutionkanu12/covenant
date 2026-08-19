@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useConnect, type Connector } from "wagmi";
 
@@ -38,7 +37,6 @@ export function WalletDialog({
 }) {
   const { connectors, connect, isPending, reset } = useConnect();
   const { push } = useToast();
-  const router = useRouter();
   const [pendingUid, setPendingUid] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -74,7 +72,6 @@ export function WalletDialog({
                     onSuccess: () => {
                       push({ tone: "success", title: "Wallet connected" });
                       onClose();
-                      router.push("/vault");
                     },
                     onError: (error) => {
                       setErrorMessage(friendlyConnectError(error));

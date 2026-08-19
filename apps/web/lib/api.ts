@@ -19,9 +19,16 @@ export class ApiError extends Error {
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  // Fastify rejects an empty body when content-type is application/json
+  // (FST_ERR_CTP_EMPTY_JSON_BODY → 400 "Bad Request"). Only declare JSON
+  // when we actually send a body.
+  if (init?.body != null && !headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
   const response = await fetch(path, {
     ...init,
-    headers: { "content-type": "application/json", ...init?.headers },
+    headers,
   });
   if (!response.ok) {
     const body = await response.json().catch(() => null);

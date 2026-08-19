@@ -3,6 +3,8 @@
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { isWalletGatedPath } from "@/lib/wallet-status";
+import { DashboardGuard } from "@/components/wallet/dashboard-guard";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { SiteFooter } from "./site-footer";
 import { SiteNav, dashboardNavLinks, publicNavLinks } from "./site-nav";
@@ -24,6 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (isDashboard) {
     return (
       <div className="flex min-h-screen">
+        {isWalletGatedPath(pathname) ? <DashboardGuard /> : null}
         <DashboardSidebar />
         <div className="flex min-w-0 flex-1 flex-col">
           <SiteNav
