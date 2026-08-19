@@ -1,27 +1,27 @@
 # Covenant
 
-Covenant is a collateralized payment commitment protocol: a payer locks a smaller FXRP bond on Flare, and Flare's Data Connector decides whether that bond returns to the payer or moves to the recipient based on what actually happened on XRPL.
+Covenant is a collateralized payment commitment protocol: a payer locks a smaller FXRP bond on Flare, and Flare's Data Connector decides whether that bond returns to the payer or moves to the recipient based on what actually happened on XRPL. This Coston2 deployment uses FTestXRP as its test collateral token; Covenant's production design refers to this collateral generically as FXRP.
 
 ## The problem
 
-A future XRP payment on XRPL has no native accountability. If a payer promises to send XRP by a deadline, the recipient has nothing but the payer's word until the payment either arrives or does not. Pre-funding the entire payment through an XRPL escrow removes the trust problem but forces the payer to lock the full amount in advance, which is often impractical. There is no neutral, automated way to attach a consequence to a promise without either full collateral or a trusted intermediary.
+- A promised future XRP payment on XRPL has no enforcement mechanism — the recipient has only the payer's word until the payment arrives or the deadline passes.
+- Pre-funding the full amount through an XRPL escrow removes the trust problem, but forces the payer to lock 100% of the payment upfront, which is often impractical.
+- There is no neutral, automated way to attach a consequence to a broken promise without either full collateral or a trusted intermediary.
 
-## What Covenant does
+## Solution
 
 - The payer locks a smaller FXRP bond on Flare, not the full XRP amount. The bond is collateral for the promise, not a copy of the payment.
 - The XRP itself never touches Covenant. It moves directly between XRPL accounts, exactly like any other XRPL payment.
-- Flare evidence, not a server or a company, determines what happens to the bond. A verified Flare Data Connector (FDC) proof of either a matching payment or its absence is the only thing the smart contract accepts as grounds for settlement.
+- Settlement is decided by Flare evidence, not a server or a company. A verified Flare Data Connector (FDC) proof of either a matching payment or its provable absence is the only thing `CovenantEscrow` accepts as grounds for settlement.
 
-## Why Flare is essential
+**Why Flare is essential:**
 
-Covenant only works because Flare can produce cryptographically verified evidence about an external chain, and because Flare hosts a bridged asset that can act as collateral without requiring users to leave XRPL for the payment itself.
+- **FDC Payment proof** — attests a specific XRPL payment happened, including source, destination, delivered amount, and payment reference. `settlePaid` only accepts a proof whose fields exactly match the commitment's stored terms, verified against the Merkle root Flare's validators finalized.
+- **ReferencedPaymentNonexistence** — attests no payment matching a reference, destination, and minimum amount exists within a finalized XRPL ledger range. This is what lets `settleDefault` prove a negative without trusting any single party's claim.
+- **FXRP** — the bridged representation of XRP on Flare that makes the bond possible at all.
+- **Coston2** — Flare's public testnet, where the escrow contract, FXRP, and the FDC system are deployed and exercised for this project.
 
-- **FDC Payment proof**: An FDC attestation that a specific XRPL payment happened, including its source, destination, delivered amount, and payment reference. `CovenantEscrow.settlePaid` only accepts a proof whose fields exactly match the commitment's stored terms, and only after `FdcVerification.verifyPayment` confirms the proof against the Merkle root Flare's validators finalized.
-- **ReferencedPaymentNonexistence**: An FDC attestation that no payment matching a reference, destination, and minimum amount exists within a specific finalized XRPL ledger range. This is what lets `settleDefault` prove a negative, that the promised payment never arrived, without trusting any single party's claim.
-- **FXRP**: The bridged representation of XRP on Flare is what makes the bond possible at all. Without an XRP-backed asset living on a smart-contract chain, there would be nothing for the escrow contract to hold or release.
-- **Coston2**: Flare's public testnet is where the escrow contract, FXRP, and the FDC system are actually deployed and exercised for this project.
-
-This is not a database app with a payment-status column. No off-chain service in Covenant can mark a commitment fulfilled or defaulted. The contract only moves the bond after an independent, cryptographically checked proof about XRPL state passes every field comparison, and the recipient of that transfer is computed by the contract itself, never supplied by whoever submits the proof.
+No off-chain service in Covenant can mark a commitment fulfilled or defaulted. The contract only moves the bond after an independent, cryptographically checked proof passes every field comparison, and it computes the recipient itself — never supplied by whoever submits the proof.
 
 ## How it works
 
@@ -32,21 +32,22 @@ This is not a database app with a payment-status column. No off-chain service in
 
 ## Architecture
 
-```text
-Browser (Next.js, wagmi/viem)
-  |
-  |-- EVM wallet ----------> Flare Coston2
-  |                            CovenantEscrow.sol
-  |                            FXRP (collateral token)
-  |                            FdcVerification
-  |
-  |-- Xaman / XRPL wallet -> XRPL Testnet
-  |
-  `-- HTTPS ---------------> Covenant API (Fastify)
-                               |-- Coston2 JSON-RPC (event indexing)
-                               |-- XRPL Testnet (payment lookup)
-                               |-- FDC verifier + Data Availability API
-                               `-- Supabase Postgres (indexed projection, jobs)
+```mermaid
+flowchart TB
+    Browser["Browser<br/>Next.js, wagmi/viem"]
+    Coston2["Flare Coston2<br/>CovenantEscrow.sol · FXRP · FdcVerification"]
+    XRPL["XRPL Testnet"]
+    API["Covenant API<br/>Fastify"]
+    Supabase["Supabase Postgres<br/>indexed projection, jobs"]
+    FDC["FDC verifier +<br/>Data Availability API"]
+
+    Browser -- EVM wallet --> Coston2
+    Browser -- Xaman / XRPL wallet --> XRPL
+    Browser -- HTTPS --> API
+    API -- JSON-RPC, event indexing --> Coston2
+    API -- payment lookup --> XRPL
+    API --> FDC
+    API --> Supabase
 ```
 
 - **Frontend** (`apps/web`): connects the wallet, enforces the Coston2 network, builds the guided commitment flow, renders the contract's state, and never holds a key or secret.
@@ -58,23 +59,47 @@ Browser (Next.js, wagmi/viem)
 
 See `docs/ARCHITECTURE.md` for trust boundaries and failure handling in more detail.
 
-## Deployment
+## Live deployment
+
+| Component | URL                                                         | Host                          |
+| --------- | ----------------------------------------------------------- | ----------------------------- |
+| Frontend  | [covenant-web.solutionkanu206128.workers.dev][frontend-url] | Cloudflare Workers (OpenNext) |
+| API       | [covenant-cb9g.onrender.com][api-url]                       | Render                        |
+
+The frontend proxies `/api/*` server-side to the API above; the browser never calls the API origin directly.
 
 `CovenantEscrow` is live on Flare Coston2 (chain ID `114`):
 
-| Contract | Address | Explorer |
-| --- | --- | --- |
-| CovenantEscrow | `0x841F714A57Ba1B1A77ef8b3732aCf825D593f017` | [View](https://coston2-explorer.flare.network/address/0x841F714A57Ba1B1A77ef8b3732aCf825D593f017) |
-| FTestXRP (collateral) | `0x0b6A3645c240605887a5532109323A3E12273dc7` | [View](https://coston2-explorer.flare.network/address/0x0b6A3645c240605887a5532109323A3E12273dc7) |
-| FdcVerification | `0x906507E0B64bcD494Db73bd0459d1C667e14B933` | [View](https://coston2-explorer.flare.network/address/0x906507E0B64bcD494Db73bd0459d1C667e14B933) |
+| Contract              | Address                                      | Explorer                    |
+| --------------------- | -------------------------------------------- | --------------------------- |
+| CovenantEscrow        | `0x841F714A57Ba1B1A77ef8b3732aCf825D593f017` | [View][exp-escrow]          |
+| FTestXRP (collateral) | `0x0b6A3645c240605887a5532109323A3E12273dc7` | [View][exp-ftestxrp]        |
+| FdcVerification       | `0x906507E0B64bcD494Db73bd0459d1C667e14B933` | [View][exp-fdcverification] |
 
-Deployment block `34013106`. The deployed bytecode and both immutable dependency addresses were confirmed live against the Coston2 RPC after deployment; see `docs/DEPLOYMENT.md` for the full record. The frontend and API currently run locally only; no public hosting URL exists yet for either.
+Deployment block `34013106`, deployment transaction [`0x87d72a97...5477a61ce2c3`][tx-deploy], gas used `2590405`. See `docs/DEPLOYMENT.md` for the full production topology and required environment variables.
+
+[frontend-url]: https://covenant-web.solutionkanu206128.workers.dev
+[api-url]: https://covenant-cb9g.onrender.com
+[exp-escrow]: https://coston2-explorer.flare.network/address/0x841F714A57Ba1B1A77ef8b3732aCf825D593f017
+[exp-ftestxrp]: https://coston2-explorer.flare.network/address/0x0b6A3645c240605887a5532109323A3E12273dc7
+[exp-fdcverification]: https://coston2-explorer.flare.network/address/0x906507E0B64bcD494Db73bd0459d1C667e14B933
+[tx-deploy]: https://coston2-explorer.flare.network/tx/0x87d72a97049a4f549dcef2777db2a780b1bb95d29bfd385470115477a61ce2c3
 
 ## Demo evidence
 
-Pending Phase 10 verification. The project has not yet recorded a real fulfilled commitment (an FDC `Payment` proof returning a bond) or a real defaulted commitment (an FDC `ReferencedPaymentNonexistence` proof transferring a bond) against the deployed Coston2 contract for judge review. Do not treat any commitment shown in the running app as a pre-arranged demo artifact until this section is updated with real transaction links.
+Two real commitments have been settled against the live contract above — not fixtures, not seeded data.
 
-## Security model
+| Commitment | Outcome   | FDC proof                       | Settlement transaction                | Bond movement                          |
+| ---------- | --------- | ------------------------------- | ------------------------------------- | -------------------------------------- |
+| #0         | Fulfilled | `Payment`                       | [`0xe9df8246...78f7edf93e4`][tx-0]    | 1 FTestXRP bond returned to the payer  |
+| #1         | Defaulted | `ReferencedPaymentNonexistence` | [`0xd633cc12...d2b104c8d6857b`][tx-1] | 1 FTestXRP bond moved to the recipient |
+
+Both transactions are `settlePaid`/`settleDefault` calls that only succeeded because a genuine FDC proof passed every field check against the commitment's stored terms — see the live deployment above to look up either commitment directly.
+
+[tx-0]: https://coston2-explorer.flare.network/tx/0xe9df824696bfaec87818853f9913bb3c6511aa088e3b2199de2a478f7edf93e4
+[tx-1]: https://coston2-explorer.flare.network/tx/0xd633cc12652eba5d3121c1401fc4dbb0cf4a332445eea2d1c5d2b104c8d6857b
+
+## Security architecture
 
 - **The contract decides settlement, not the backend.** `settlePaid` and `settleDefault` each independently recompute every required field from the submitted FDC proof and compare it against the commitment's own stored terms. Only `FdcVerification.verifyPayment` / `verifyReferencedPaymentNonexistence` returning true, on top of every field check passing, allows a transfer.
 - **The backend cannot choose the recipient.** `settlePaid` always pays the commitment's recorded payer; `settleDefault` always pays the commitment's recorded beneficiary. Whoever submits the proof transaction has no influence over where funds go.
@@ -87,45 +112,50 @@ Pending Phase 10 verification. The project has not yet recorded a real fulfilled
 
 See `docs/SECURITY.md` for the full breakdown, including known limitations.
 
-## Local development
+## Repository structure
+
+```text
+apps/
+  api/        Fastify backend — event indexer, XRPL client, FDC job executor
+  web/        Next.js frontend (App Router)
+packages/
+  contracts/  CovenantEscrow.sol and its Foundry unit/invariant tests
+  shared/     Cross-package constants (deployment addresses, chain config)
+supabase/     SQL migrations and seed data (local development only, not the live evidence above)
+docs/         Architecture, deployment, security, and phase-by-phase provenance
+```
+
+## Quickstart
 
 Requirements: Node.js 20+, pnpm 10.15.0, Foundry (`forge`), and a Supabase project for the API.
 
 ```bash
 pnpm install
-cp .env.example .env   # fill in Supabase, RPC, and any optional keys
+cp .env.example .env   # see docs/DEPLOYMENT.md for required and optional variables
 pnpm --filter @covenant/api dev    # http://localhost:3001
 pnpm --filter @covenant/web dev    # http://localhost:3000
 ```
 
-See `docs/DEPLOYMENT.md` for the full environment variable reference.
+Or skip local setup entirely and use the live deployment above.
 
-## Tests
+See `docs/DEPLOYMENT.md` for the full environment variable reference and production topology.
 
-Currently verified in this environment:
+## Testing
 
-- Web unit tests: **21/21 passing** (`pnpm --filter @covenant/web test`)
-- API unit and integration tests: **49/49 passing** (`pnpm --filter @covenant/api test`)
+- Contract tests (Foundry): **26/26 passing** (`packages/contracts/test/CovenantEscrow.t.sol`, `CovenantEscrow.invariant.t.sol`)
+- API unit and integration tests: **61/61 passing** (`pnpm --filter @covenant/api test`)
+- Web unit tests: **38/38 passing** (`pnpm --filter @covenant/web test`)
 - Lint: passing (`pnpm lint`)
 - Typecheck: passing (`pnpm typecheck`, all workspaces)
-
-Contract tests exist under `packages/contracts/test/` (`CovenantEscrow.t.sol`, `CovenantEscrow.invariant.t.sol`) but could not be executed in this environment and are not included in the counts above.
 
 ## Limitations
 
 - Covenant is a collateralized payment commitment, not insurance. It does not reimburse a payer or recipient beyond the value of the FXRP bond that was actually locked.
 - Covenant does not guarantee the full XRP payment arrives. It guarantees that a bond consequence follows from verifiable evidence about whether the payment arrived, nothing more.
 - Covenant never custodies XRP. XRP moves directly between XRPL accounts; the contract only ever holds the FXRP bond.
-- The contract's deadline is hard: `settleDefault` becomes available immediately once `deadlineTimestamp` passes. The indexed `cure_ends_at` field currently equals the deadline itself, so there is no separate grace window yet beyond what the contract enforces.
+- There is currently no separate configurable cure period beyond the contract's payment deadline.
 - This is a Coston2 testnet deployment using test FXRP and XRPL Testnet funds. No mainnet deployment exists.
 
-## Hackathon provenance
+## Provenance
 
-Built for Flare Summer Signal. See `docs/PROVENANCE.md` for the phase-by-phase breakdown of what was built, with commit references. In short: the entire repository, contract, backend, and frontend were built during this hackathon; nothing pre-existed it.
-
-## Roadmap
-
-- Record real fulfilled and defaulted Coston2 commitments as permanent judge evidence (Phase 10).
-- Deploy the frontend and API to public hosting.
-- Add a configurable cure window distinct from the payment deadline.
-- Revisit mainnet deployment only after further review.
+See [`docs/PROVENANCE.md`](docs/PROVENANCE.md) for the commit-by-commit build history of this repository.

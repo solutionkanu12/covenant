@@ -56,4 +56,4 @@ This document covers only protections that are implemented and can be pointed to
 - No external security audit has been performed on `CovenantEscrow` or the API.
 - The indexed `cure_ends_at` field currently equals `deadline_at`; there is no cure window distinct from the contract's own hard deadline yet, even though the schema and the default-settlement gate are already structured to support one.
 - Rate limiting on public proof-creation endpoints (`prove-payment`, `prove-default`) is not currently implemented; both are idempotent per commitment via the unique `fdc_jobs` key, which limits but does not eliminate the value of spamming them.
-- Contract tests exist (`CovenantEscrow.t.sol`, `CovenantEscrow.invariant.t.sol`) but a pass/fail count is not included in this document because Foundry could not be executed in the environment this document was written in; see the README's Tests section for what was actually run.
+- Contract tests (`CovenantEscrow.t.sol`, `CovenantEscrow.invariant.t.sol`): 26/26 passing. See the README's Testing section for the full test count across all three packages.

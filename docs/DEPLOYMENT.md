@@ -9,11 +9,11 @@ Flare Coston2 testnet, chain ID `114`.
 
 ## Contracts
 
-| Contract | Address | Explorer |
-| --- | --- | --- |
-| CovenantEscrow | `0x841F714A57Ba1B1A77ef8b3732aCf825D593f017` | <https://coston2-explorer.flare.network/address/0x841F714A57Ba1B1A77ef8b3732aCf825D593f017> |
+| Contract                    | Address                                      | Explorer                                                                                    |
+| --------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| CovenantEscrow              | `0x841F714A57Ba1B1A77ef8b3732aCf825D593f017` | <https://coston2-explorer.flare.network/address/0x841F714A57Ba1B1A77ef8b3732aCf825D593f017> |
 | FTestXRP (collateral token) | `0x0b6A3645c240605887a5532109323A3E12273dc7` | <https://coston2-explorer.flare.network/address/0x0b6A3645c240605887a5532109323A3E12273dc7> |
-| FdcVerification | `0x906507E0B64bcD494Db73bd0459d1C667e14B933` | <https://coston2-explorer.flare.network/address/0x906507E0B64bcD494Db73bd0459d1C667e14B933> |
+| FdcVerification             | `0x906507E0B64bcD494Db73bd0459d1C667e14B933` | <https://coston2-explorer.flare.network/address/0x906507E0B64bcD494Db73bd0459d1C667e14B933> |
 
 - Deployment block: `34013106`
 - Deployment transaction: `0x87d72a97049a4f549dcef2777db2a780b1bb95d29bfd385470115477a61ce2c3`
@@ -23,16 +23,33 @@ The deployed runtime bytecode and both immutable dependency getters (`collateral
 
 The contract's `collateralToken` and `fdcVerification` addresses are immutable and were set at deployment to the FTestXRP and FdcVerification addresses above; they are not something the frontend or API selects independently, `packages/shared/src/index.ts` records them for client convenience.
 
-## Frontend and API deployment status
+## Production topology
 
-Neither `apps/web` nor `apps/api` is currently deployed to a public host from this repository. There is no hosting configuration file (no `wrangler.toml`, `render.yaml`, `vercel.json`, or equivalent) checked in, and no CI/CD workflow exists yet. Both currently run locally only:
+```text
+Browser
+  |
+  `-- HTTPS --> Cloudflare Workers (covenant-web.solutionkanu206128.workers.dev)
+                  Next.js (OpenNext adapter, apps/web)
+                  |
+                  `-- /api/* rewrite --> Render (covenant-cb9g.onrender.com)
+                                           Fastify API (apps/api)
+                                           |-- Supabase Postgres
+                                           |-- Coston2 JSON-RPC
+                                           `-- XRPL Testnet
+```
+
+- **Frontend — Cloudflare Workers.** `apps/web` is built with `@opennextjs/cloudflare` (`apps/web/open-next.config.ts`, `apps/web/wrangler.jsonc`) and deployed as a Worker: `pnpm --filter @covenant/web run cf:build` then `cf:deploy`. Live at <https://covenant-web.solutionkanu206128.workers.dev>.
+- **API — Render.** `apps/api` runs as a Render Web Service: build command `pnpm run build:api`, start command `pnpm --filter @covenant/api start` (`node dist/server.js`, binds `0.0.0.0:$PORT`). Live at <https://covenant-cb9g.onrender.com>. The indexer and FDC job processor run in-process on `setInterval`, so the service must stay on an always-on plan, not one that spins down on idle.
+- **Wiring.** The frontend's `next.config.ts` rewrites every `/api/*` request server-side to `COVENANT_API_URL`, which is set to `https://covenant-cb9g.onrender.com` at Cloudflare build time. The browser only ever calls the frontend's own origin; it never talks to the Render API directly, and the API needs no CORS configuration as a result.
+
+For local development, both run without any of the above:
 
 ```bash
 pnpm --filter @covenant/api dev    # http://localhost:3001
 pnpm --filter @covenant/web dev    # http://localhost:3000
 ```
 
-The web app's Next.js server proxies `/api/*` requests to `COVENANT_API_URL` (default `http://localhost:3001`) in local development.
+`COVENANT_API_URL` defaults to `http://localhost:3001` when unset, so the proxy above works out of the box in local development.
 
 ## Required environment variables
 
@@ -44,7 +61,7 @@ Names only; see `.env.example` for the authoritative list and inline documentati
 - `XRPL_TESTNET_URL`: XRPL Testnet WebSocket endpoint.
 - `FDC_VERIFIER_URL`: Flare's public XRP FDC verifier endpoint.
 - `NEXT_PUBLIC_COSTON2_RPC_URL`: optional browser-side RPC override.
-- `COVENANT_API_URL`: where the web app's server proxies `/api/*` in local development.
+- `COVENANT_API_URL`: where the web app's server proxies `/api/*`. Defaults to `http://localhost:3001` in local development; set to `https://covenant-cb9g.onrender.com` at Cloudflare build time in production (see Production topology above).
 
 ### Supabase
 
